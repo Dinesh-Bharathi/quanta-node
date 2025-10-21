@@ -10,6 +10,8 @@ import { limiter } from "./middlewares/rateLimiter.js";
 import { errorHandler } from "./middlewares/errorHandler.js";
 import routes from "./routes/index.js";
 import dotenv from "dotenv";
+import passport from "./config/passport.js";
+import morganLogger from "./middlewares/morganLogger.js";
 
 dotenv.config();
 const app = express();
@@ -27,6 +29,10 @@ app.use(compression());
 app.use(mongoSanitize());
 app.use(xss());
 app.use(hpp());
+
+app.use(morganLogger);
+
+app.use(passport.initialize());
 
 // Rate Limiting
 app.use("/api", limiter);

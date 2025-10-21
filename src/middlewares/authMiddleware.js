@@ -4,8 +4,6 @@ export const verifyToken = (req, res, next) => {
   try {
     const token = req.cookies.token;
 
-    console.log("token", token);
-
     if (!token) {
       return res.status(401).json({
         success: false,
@@ -15,7 +13,6 @@ export const verifyToken = (req, res, next) => {
 
     // Verify token
     jwt.verify(token, process.env.JWT_SECRET, (err, decoded) => {
-      console.log("err, decoded", err, decoded);
       if (err) {
         const message =
           err.name === "TokenExpiredError"

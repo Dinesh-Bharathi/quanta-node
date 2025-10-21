@@ -2,6 +2,7 @@ import {
   registerService,
   loginService,
   getSessionService,
+  changePasswordService,
 } from "../../services/auth/auth.service.js";
 
 export const register = async (req, res, next) => {
@@ -52,8 +53,6 @@ export const getSession = async (req, res, next) => {
   try {
     const { user_uuid } = req.user;
 
-    console.log("req.user", req.user);
-
     if (!user_uuid) {
       return res.status(401).json({
         success: false,
@@ -88,5 +87,24 @@ export const logout = async (req, res, next) => {
     });
   } catch (error) {
     next(error);
+  }
+};
+
+export const changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, confirmPassword } = req.body;
+    const { user_uuid } = req.user;
+
+    await changePasswordService(user_uuid, currentPassword, confirmPassword);
+
+    res.status(200).json({
+      success: true,
+      message: "Password changed successfully",
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
   }
 };

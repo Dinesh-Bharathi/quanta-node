@@ -86,8 +86,6 @@ export const loginService = async ({ email, password }) => {
     [email]
   );
 
-  console.log("user", user);
-
   if (user.length === 0) throw new Error("Invalid credentials");
   const currentUser = user[0];
 
@@ -141,4 +139,39 @@ export const getSessionService = async (user_uuid) => {
       tent_status: !!data.tent_status,
     },
   };
+};
+
+export const changePasswordService = async (
+  user_uuid,
+  oldPassword,
+  newPassword
+) => {
+  if (!oldPassword || !newPassword) {
+    throw new Error("Old password and new password are required");
+  }
+
+  const [rows] = await pool.query(
+    "SELECT password FROM tbl_tent_users1 WHERE user_uuid = ?",
+    [user_uuid]
+  );
+
+  if (rows.length === 0) {
+    throw new Error("User not found");
+  }
+
+  const currentPasswordHash = rows[0].password;
+
+  const isMatch = await comparePassword(oldPassword, currentPasswordHash);
+  if (!isMatch) {
+    throw new Error("Old password is incorrect");
+  }
+
+  const hashedNewPassword = await hashPassword(newPassword);
+
+  await pool.query(
+    "UPDATE tbl_tent_users1 SET password = ?, modified_on = NOW() WHERE user_uuid = ?",
+    [hashedNewPassword, user_uuid]
+  );
+
+  return true;
 };

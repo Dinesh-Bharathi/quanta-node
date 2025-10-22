@@ -3,6 +3,7 @@ import { pool } from "../config/db.js";
 import { generateShortUUID } from "../utils/generateUUID.js";
 import authRoutes from "./auth.route.js";
 import settingsRoutes from "./settings/settings.route.js";
+import controlsRoutes from "./controls/controls.route.js";
 
 const router = Router();
 
@@ -24,6 +25,7 @@ router.get("/check-db", async (req, res, next) => {
 });
 
 router.use("/auth", authRoutes);
+router.use("/controls", controlsRoutes);
 router.use("/settings", settingsRoutes);
 
 export default router;

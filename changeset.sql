@@ -1,5 +1,5 @@
 CREATE TABLE IF NOT EXISTS tbl_tent_master1 (
-  tent_id INT AUTO_INCREMENT PRIMARY KEY,
+  tent_id BIGINT AUTO_INCREMENT PRIMARY KEY,
   tent_uuid CHAR(8) NOT NULL UNIQUE,
   tent_name VARCHAR(100) NOT NULL,
   tent_country_code VARCHAR(10),
@@ -20,8 +20,8 @@ CREATE TABLE IF NOT EXISTS tbl_tent_master1 (
 
 CREATE TABLE
 	IF NOT EXISTS tbl_tent_users1 (
-		user_id INT AUTO_INCREMENT PRIMARY KEY,
-		tent_id INT NOT NULL,
+		user_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+		tent_id BIGINT NOT NULL,
 		user_uuid CHAR(8) NOT NULL UNIQUE,
 		user_name VARCHAR(100) NOT NULL,
 		user_email VARCHAR(150) UNIQUE,
@@ -31,7 +31,7 @@ CREATE TABLE
 		is_owner BOOLEAN DEFAULT FALSE,
 		created_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		modified_on TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-		FOREIGN KEY (tent_id) REFERENCES tbl_tent_master (tent_id) ON DELETE CASCADE
+		FOREIGN KEY (tent_id) REFERENCES tbl_tent_master1 (tent_id) ON DELETE CASCADE
 	);
 
 CREATE TABLE
@@ -49,6 +49,40 @@ CREATE TABLE
 	) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci;
 
 
+CREATE TABLE IF NOT EXISTS roles (
+    role_id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    tent_id BIGINT NULL,
+    name VARCHAR(100) NOT NULL,
+    description VARCHAR(255),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_roles_tenant FOREIGN KEY (tent_id) REFERENCES tbl_tent_master1(tent_id) ON DELETE CASCADE ON UPDATE CASCADE,
+    UNIQUE KEY uniq_tenant_role (tent_id, name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS user_roles (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    role_id BIGINT NOT NULL,
+    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_ur_user FOREIGN KEY (user_id) REFERENCES tbl_tent_users1(user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_ur_role FOREIGN KEY (role_id) REFERENCES roles(role_id) ON DELETE CASCADE,
+    UNIQUE KEY uniq_user_role (user_id, role_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS role_permissions (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    role_id BIGINT NOT NULL,
+    menu_id BIGINT NOT NULL,
+    can_read TINYINT(1) DEFAULT 0,
+    can_add  TINYINT(1) DEFAULT 0,
+    can_update TINYINT(1) DEFAULT 0,
+    can_delete TINYINT(1) DEFAULT 0,
+    CONSTRAINT fk_role_permissions_role FOREIGN KEY (role_id) REFERENCES roles(role_id) ON DELETE CASCADE,
+    CONSTRAINT fk_role_permissions_menu FOREIGN KEY (menu_id) REFERENCES menus(menu_id) ON DELETE CASCADE,
+    UNIQUE KEY uniq_role_menu (role_id, menu_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
 -- Functions
 
 -- Generate UUID
@@ -64,6 +98,7 @@ BEGIN
 END$$
 
 DELIMITER ;
+
 
 -- Triggers
 -- Before Insert insert UUID to tbl_tent_master1
@@ -93,3 +128,50 @@ BEGIN
 END$$
 
 DELIMITER ;
+
+
+-- Inserts default
+
+-- SuperAdmin can do everything
+INSERT INTO role_permissions (role_id, menu_id, can_read, can_add, can_update, can_delete)
+SELECT r.role_id, m.menu_id, 1,1,1,1
+FROM roles r, menus m
+WHERE r.name = 'SuperAdmin' AND r.tent_id IS NULL;
+
+-- Admin can read/add/update Settings, read Dashboard
+INSERT INTO role_permissions (role_id, menu_id, can_read, can_add, can_update, can_delete)
+SELECT r.role_id, m.menu_id,
+  CASE WHEN m.menu_key='settings' THEN 1 ELSE 1 END AS can_read,
+  CASE WHEN m.menu_key='settings' THEN 1 ELSE 0 END AS can_add,
+  CASE WHEN m.menu_key='settings' THEN 1 ELSE 0 END AS can_update,
+  CASE WHEN m.menu_key='settings' THEN 1 ELSE 0 END AS can_delete
+FROM roles r, menus m
+WHERE r.name='Admin' AND r.tent_id IS NULL;
+
+-- Manager: read dashboard only
+INSERT INTO role_permissions (role_id, menu_id, can_read, can_add, can_update, can_delete)
+SELECT r.role_id, m.menu_id, 1,0,0,0
+FROM roles r, menus m
+WHERE r.name='Manager' AND r.tent_id IS NULL AND m.menu_key='dashboard';
+
+-- Viewer: read dashboard only
+INSERT INTO role_permissions (role_id, menu_id, can_read, can_add, can_update, can_delete)
+SELECT r.role_id, m.menu_id, 1,0,0,0
+FROM roles r, menus m
+WHERE r.name='Viewer' AND r.tent_id IS NULL AND m.menu_key='dashboard';
+
+
+-- Clone default roles into new tenant
+INSERT INTO roles (tent_id, name, description)
+SELECT t.tent_id, r.name, r.description
+FROM tbl_tent_master1 t
+JOIN roles r ON r.tent_id IS NULL
+WHERE t.tent_id = ?; -- new tenant_id
+
+-- Clone default role permissions for each new tenant role
+INSERT INTO role_permissions (role_id, menu_id, can_read, can_add, can_update, can_delete)
+SELECT r2.role_id, rp.menu_id, rp.can_read, rp.can_add, rp.can_update, rp.can_delete
+FROM roles r2
+JOIN roles r1 ON r1.name = r2.name AND r1.tent_id IS NULL
+JOIN role_permissions rp ON rp.role_id = r1.role_id
+WHERE r2.tent_id = ?;

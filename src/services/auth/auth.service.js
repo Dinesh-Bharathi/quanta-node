@@ -56,7 +56,7 @@ export const registerService = async (data) => {
   const hashedPwd = await hashPassword(password);
 
   await pool.query(
-    `INSERT INTO tbl_tent_users 
+    `INSERT INTO tbl_tent_users1 
     (tent_id, user_uuid, user_name, user_email, user_country_code, user_phone, password, is_owner) 
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [

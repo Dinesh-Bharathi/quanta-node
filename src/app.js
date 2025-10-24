@@ -12,6 +12,7 @@ import routes from "./routes/index.js";
 import dotenv from "dotenv";
 import passport from "./config/passport.js";
 import morganLogger from "./middlewares/morganLogger.js";
+import morgan from "morgan";
 
 dotenv.config();
 const app = express();
@@ -47,7 +48,8 @@ app.use(mongoSanitize());
 app.use(xss());
 app.use(hpp());
 
-app.use(morganLogger);
+// app.use(morganLogger);
+app.use(morgan("combined"));
 
 app.use(passport.initialize());
 

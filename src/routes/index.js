@@ -7,20 +7,30 @@ import controlsRoutes from "./controls/controls.route.js";
 
 const router = Router();
 
-router.get("/", (req, res) => {
+router.get("/health", (req, res) => {
   res.json({
     success: true,
-    message: "Secure MySQL Express API is running 🚀",
+    message: "API service is running 🚀",
   });
 });
 
 router.get("/check-db", async (req, res, next) => {
   try {
-    const [tables] = await pool.query("SHOW TABLES");
-    const tentUUID = generateShortUUID();
-    res.json({ success: true, tables, tentUUID });
+    const connection = await pool.getConnection();
+    await connection.ping(); // lightweight health check
+    connection.release();
+
+    res.json({
+      success: true,
+      message: "Database connection is healthy ✅",
+    });
   } catch (error) {
-    next(error);
+    console.error("Database health check failed:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Database connection failed ❌",
+      error: error.message,
+    });
   }
 });
 

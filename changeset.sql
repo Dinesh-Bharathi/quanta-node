@@ -82,6 +82,11 @@ CREATE TABLE IF NOT EXISTS role_permissions (
     UNIQUE KEY uniq_role_menu (role_id, menu_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+ALTER TABLE `menus` 
+ADD COLUMN `menu_group` varchar(100) DEFAULT 'Management' AFTER `menu_key`,
+ADD COLUMN `is_main_menu` boolean DEFAULT true AFTER `menu_group`,
+ADD COLUMN `is_footer_menu` boolean DEFAULT false AFTER `is_main_menu`;
+
 
 -- Functions
 

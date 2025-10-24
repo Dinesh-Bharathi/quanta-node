@@ -5,5 +5,7 @@ dotenv.config();
 const PORT = process.env.PORT || 8080;
 
 app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT} (${process.env.NODE_ENV})`);
+  console.log(
+    `🚀 Server running on localhost:${PORT} (${process.env.NODE_ENV})`
+  );
 });

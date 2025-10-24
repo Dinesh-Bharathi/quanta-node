@@ -45,7 +45,10 @@ router.get(
 // Step 2: Callback after Google login
 router.get(
   "/google/callback",
-  passport.authenticate("google", { session: false, failureRedirect: "/" }),
+  passport.authenticate("google", {
+    session: false,
+    failureRedirect: "/login",
+  }),
   (req, res) => {
     const { user_uuid, tent_uuid, user_email } = req.user;
 

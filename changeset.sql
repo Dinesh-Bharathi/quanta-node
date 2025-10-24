@@ -39,6 +39,9 @@ CREATE TABLE
 		menu_id BIGINT AUTO_INCREMENT PRIMARY KEY,
 		menu_uuid char(8) NOT NULL,
 		menu_key VARCHAR(100) NOT NULL, -- programmatic key, e.g. "users", "reports"
+    menu_group varchar(100) DEFAULT 'Management',
+    is_main_menu boolean DEFAULT true,
+    is_footer_menu boolean DEFAULT false,
 		menu_name VARCHAR(255) NOT NULL, -- display name
 		path VARCHAR(255) DEFAULT NULL,
 		parent_menu_id BIGINT DEFAULT NULL,
@@ -81,11 +84,6 @@ CREATE TABLE IF NOT EXISTS role_permissions (
     CONSTRAINT fk_role_permissions_menu FOREIGN KEY (menu_id) REFERENCES menus(menu_id) ON DELETE CASCADE,
     UNIQUE KEY uniq_role_menu (role_id, menu_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
-ALTER TABLE `menus` 
-ADD COLUMN `menu_group` varchar(100) DEFAULT 'Management' AFTER `menu_key`,
-ADD COLUMN `is_main_menu` boolean DEFAULT true AFTER `menu_group`,
-ADD COLUMN `is_footer_menu` boolean DEFAULT false AFTER `is_main_menu`;
 
 
 -- Functions

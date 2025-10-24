@@ -55,7 +55,7 @@ export const registerService = async (data) => {
   const user_uuid = generateShortUUID();
   const hashedPwd = await hashPassword(password);
 
-  await pool.query(
+  const [userResult] = await pool.query(
     `INSERT INTO tbl_tent_users1 
     (tent_id, user_uuid, user_name, user_email, user_country_code, user_phone, password, is_owner) 
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -70,6 +70,13 @@ export const registerService = async (data) => {
       true,
     ]
   );
+
+  const user_id = userResult.insertId;
+
+  await pool.query(`INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)`, [
+    user_id,
+    1,
+  ]);
 
   const token = generateToken({
     tent_uuid,

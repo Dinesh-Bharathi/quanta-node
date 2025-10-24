@@ -34,18 +34,25 @@ passport.use(
 
         const [tentResult] = await pool.query(
           `INSERT INTO tbl_tent_master1 (tent_uuid, tent_email, is_email_verified)
-           VALUES (?, ?, ?, ?)`,
+           VALUES (?, ?, ?)`,
           [tent_uuid, email, true]
         );
 
         const tent_id = tentResult.insertId;
         const user_uuid = generateShortUUID();
 
-        await pool.query(
+        const [userResult] = await pool.query(
           `INSERT INTO tbl_tent_users1 
            (tent_id, user_uuid, user_name, user_email, is_owner)
            VALUES (?, ?, ?, ?, ?)`,
           [tent_id, user_uuid, name, email, true]
+        );
+
+        const user_id = userResult.insertId;
+
+        await pool.query(
+          `INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)`,
+          [user_id, 1]
         );
 
         const newUser = {

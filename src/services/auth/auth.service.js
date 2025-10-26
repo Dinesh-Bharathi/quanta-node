@@ -73,10 +73,10 @@ export const registerService = async (data) => {
 
   const user_id = userResult.insertId;
 
-  await pool.query(`INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)`, [
-    user_id,
-    1,
-  ]);
+  await pool.query(
+    `INSERT INTO tbl_user_roles (user_id, role_id) VALUES (?, ?)`,
+    [user_id, 1]
+  );
 
   const token = generateToken({
     tent_uuid,

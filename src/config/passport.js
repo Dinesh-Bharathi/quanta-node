@@ -51,7 +51,7 @@ passport.use(
         const user_id = userResult.insertId;
 
         await pool.query(
-          `INSERT INTO user_roles (user_id, role_id) VALUES (?, ?)`,
+          `INSERT INTO tbl_user_roles (user_id, role_id) VALUES (?, ?)`,
           [user_id, 1]
         );
 

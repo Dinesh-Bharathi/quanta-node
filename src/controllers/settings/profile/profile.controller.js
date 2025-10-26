@@ -7,7 +7,6 @@ import {
 export const getUserProfile = async (req, res, next) => {
   try {
     const { userUuid } = req.params;
-    console.log("userUuid", userUuid);
 
     const userData = await getUserProfileService(userUuid);
 

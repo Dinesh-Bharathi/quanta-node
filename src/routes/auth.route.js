@@ -38,32 +38,53 @@ router.post("/logout", verifyToken, logout);
 router.post("/change-password", verifyToken, cryptoMiddleware, changePassword);
 
 router.get(
-  "/google",
-  passport.authenticate("google", { scope: ["profile", "email"] })
+  "/google/login",
+  passport.authenticate("google-login", { scope: ["profile", "email"] })
 );
 
-// Step 2: Callback after Google login
 router.get(
-  "/google/callback",
-  passport.authenticate("google", {
+  "/google/login/callback",
+  passport.authenticate("google-login", {
     session: false,
-    failureRedirect: `${process.env.CLIENT_URL}/login`,
+    failureRedirect: `${process.env.CLIENT_URL}/login?error=not_found`,
   }),
   (req, res) => {
     const { user_uuid, tent_uuid, user_email } = req.user;
 
-    const token = generateToken({
-      user_uuid,
-      tent_uuid,
-      user_email,
-    });
+    const token = generateToken({ user_uuid, tent_uuid, user_email });
 
-    // Set the token in HTTP-only cookie
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "None" : "Strict",
-      maxAge: 24 * 60 * 60 * 1000, // 1 day
+      maxAge: 24 * 60 * 60 * 1000,
+    });
+
+    res.redirect(`${process.env.CLIENT_URL}/dashboard`);
+  }
+);
+
+router.get(
+  "/google/signup",
+  passport.authenticate("google-signup", { scope: ["profile", "email"] })
+);
+
+router.get(
+  "/google/signup/callback",
+  passport.authenticate("google-signup", {
+    session: false,
+    failureRedirect: `${process.env.CLIENT_URL}/signup?error=exists`,
+  }),
+  (req, res) => {
+    const { user_uuid, tent_uuid, user_email } = req.user;
+
+    const token = generateToken({ user_uuid, tent_uuid, user_email });
+
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "None" : "Strict",
+      maxAge: 24 * 60 * 60 * 1000,
     });
 
     res.redirect(`${process.env.CLIENT_URL}/dashboard`);

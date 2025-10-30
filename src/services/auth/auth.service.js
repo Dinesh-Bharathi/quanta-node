@@ -3,40 +3,124 @@ import { generateShortUUID } from "../../utils/generateUUID.js";
 import { generateToken } from "../../utils/generateToken.js";
 import { hashPassword, comparePassword } from "../../utils/hashPassword.js";
 
-export const registerService = async (data) => {
-  const {
-    tent_name,
-    tent_country_code,
-    tent_phone,
-    tent_email,
-    tent_logo,
-    tent_address1,
-    tent_address2,
-    tent_state,
-    tent_country,
-    tent_postalcode,
-    user_name,
-    user_email,
-    user_country_code,
-    user_phone,
-    password,
-  } = data;
+export const createDefaultSetupForTenant = async (conn, tent_id, user_id) => {
+  // Free Trial Subscription
+  const subscription_uuid = generateShortUUID();
 
-  const [existingTent] = await pool.query(
-    "SELECT tent_id FROM tbl_tent_master1 WHERE tent_email = ?",
-    [tent_email]
+  await conn.query(
+    `
+    INSERT INTO tbl_tenant_subscriptions (
+      subscription_uuid,
+      tent_id,
+      plan_id,
+      start_date,
+      end_date,
+      is_active,
+      is_auto_renew,
+      payment_status
+    )
+    SELECT
+      ? AS subscription_uuid,
+      ? AS tent_id,
+      sp.plan_id,
+      NOW() AS start_date,
+      DATE_ADD(NOW(), INTERVAL sp.duration_days DAY) AS end_date,
+      1 AS is_active,
+      0 AS is_auto_renew,
+      'FREE' AS payment_status
+    FROM tbl_subscription_plans sp
+    WHERE sp.plan_name = 'Free Trial';
+    `,
+    [subscription_uuid, tent_id]
   );
-  if (existingTent.length > 0) {
-    throw new Error("Tent with this email already exists");
+
+  // Insert Default Roles - Super Admin and Admin
+  const superAdminUUID = generateShortUUID();
+  const adminUUID = generateShortUUID();
+
+  const [roleResult] = await conn.query(
+    `
+    INSERT INTO tbl_roles (role_uuid, tent_id, name, description, role_type, is_active)
+    VALUES
+      (?, ?, 'Super Admin', 'Full access across system', 'SYSTEM', 1),
+      (?, ?, 'Admin', 'Access and manages administration', 'CUSTOM', 1);
+    `,
+    [superAdminUUID, tent_id, adminUUID, tent_id]
+  );
+
+  const [roles] = await conn.query(
+    `SELECT role_id, name FROM tbl_roles WHERE tent_id = ? AND name IN ('Super Admin', 'Admin')`,
+    [tent_id]
+  );
+
+  const superAdminRole = roles.find((r) => r.name === "Super Admin");
+  const adminRole = roles.find((r) => r.name === "Admin");
+
+  // Map Super Admin role to the owner user
+  if (superAdminRole) {
+    await conn.query(
+      `INSERT INTO tbl_user_roles (user_id, role_id) VALUES (?, ?)`,
+      [user_id, superAdminRole.role_id]
+    );
   }
 
-  const tent_uuid = generateShortUUID();
-  const [tentResult] = await pool.query(
-    `INSERT INTO tbl_tent_master1 
-    (tent_uuid, tent_name, tent_country_code, tent_phone, tent_email, tent_logo, tent_address1, tent_address2, tent_state, tent_country, tent_postalcode) 
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      tent_uuid,
+  // Grant full permissions for Super Admin on all menus
+  if (superAdminRole) {
+    await conn.query(
+      `
+      INSERT INTO tbl_role_permissions (
+        role_id,
+        menu_id,
+        can_read,
+        can_add,
+        can_update,
+        can_delete
+      )
+      SELECT
+        ? AS role_id,
+        menu_id,
+        1 AS can_read,
+        1 AS can_add,
+        1 AS can_update,
+        1 AS can_delete
+      FROM tbl_menus;
+      `,
+      [superAdminRole.role_id]
+    );
+  }
+
+  // Grant limited access to Admin
+  // if (adminRole) {
+  //   await conn.query(
+  //     `
+  //     INSERT INTO tbl_role_permissions (
+  //       role_id,
+  //       menu_id,
+  //       can_read,
+  //       can_add,
+  //       can_update,
+  //       can_delete
+  //     )
+  //     SELECT
+  //       ? AS role_id,
+  //       menu_id,
+  //       1 AS can_read,
+  //       CASE WHEN menu_key IN ('users', 'settings') THEN 1 ELSE 0 END AS can_add,
+  //       CASE WHEN menu_key IN ('users') THEN 1 ELSE 0 END AS can_update,
+  //       0 AS can_delete
+  //     FROM tbl_menus;
+  //     `,
+  //     [adminRole.role_id]
+  //   );
+  // }
+};
+
+export const registerService = async (data) => {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const {
       tent_name,
       tent_country_code,
       tent_phone,
@@ -47,44 +131,79 @@ export const registerService = async (data) => {
       tent_state,
       tent_country,
       tent_postalcode,
-    ]
-  );
-
-  const tent_id = tentResult.insertId;
-
-  const user_uuid = generateShortUUID();
-  const hashedPwd = await hashPassword(password);
-
-  const [userResult] = await pool.query(
-    `INSERT INTO tbl_tent_users1 
-    (tent_id, user_uuid, user_name, user_email, user_country_code, user_phone, password, is_owner) 
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      tent_id,
-      user_uuid,
       user_name,
       user_email,
       user_country_code,
       user_phone,
-      hashedPwd,
-      true,
-    ]
-  );
+      password,
+    } = data;
 
-  const user_id = userResult.insertId;
+    const [existingTent] = await connection.query(
+      "SELECT tent_id FROM tbl_tent_master1 WHERE tent_email = ?",
+      [tent_email]
+    );
+    if (existingTent.length > 0) {
+      throw new Error("Tent with this email already exists");
+    }
 
-  await pool.query(
-    `INSERT INTO tbl_user_roles (user_id, role_id) VALUES (?, ?)`,
-    [user_id, 1]
-  );
+    const tent_uuid = generateShortUUID();
+    const [tentResult] = await connection.query(
+      `INSERT INTO tbl_tent_master1 
+      (tent_uuid, tent_name, tent_country_code, tent_phone, tent_email, tent_logo, tent_address1, tent_address2, tent_state, tent_country, tent_postalcode) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        tent_uuid,
+        tent_name,
+        tent_country_code,
+        tent_phone,
+        tent_email,
+        tent_logo,
+        tent_address1,
+        tent_address2,
+        tent_state,
+        tent_country,
+        tent_postalcode,
+      ]
+    );
+    const tent_id = tentResult.insertId;
 
-  const token = generateToken({
-    tent_uuid,
-    user_email,
-    user_uuid,
-  });
+    const user_uuid = generateShortUUID();
+    const hashedPwd = await hashPassword(password);
 
-  return { token, user_uuid };
+    const [userResult] = await connection.query(
+      `INSERT INTO tbl_tent_users1 
+      (tent_id, user_uuid, user_name, user_email, user_country_code, user_phone, password, is_owner) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        tent_id,
+        user_uuid,
+        user_name,
+        user_email,
+        user_country_code,
+        user_phone,
+        hashedPwd,
+        true,
+      ]
+    );
+    const user_id = userResult.insertId;
+
+    await createDefaultSetupForTenant(connection, tent_id, user_id);
+
+    await connection.commit();
+
+    const token = generateToken({
+      tent_uuid,
+      user_email,
+      user_uuid,
+    });
+
+    return { token, tent_uuid, user_uuid };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
 };
 
 export const loginService = async ({ email, password }) => {

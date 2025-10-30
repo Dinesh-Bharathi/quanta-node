@@ -271,7 +271,7 @@ export const getTenantRolesService = async (tentUuid) => {
     LEFT JOIN tbl_tent_users1 ttu1 ON tr.created_by = ttu1.user_id
     LEFT JOIN tbl_tent_users1 ttu2 ON tr.updated_by = ttu2.user_id
     INNER JOIN tbl_tent_master1 ttm ON tr.tent_id = ttm.tent_id
-    WHERE ttm.tent_uuid = '3ac40351'
+    WHERE ttm.tent_uuid = ?
       AND tr.is_delete = 0;`,
     [tentUuid]
   );

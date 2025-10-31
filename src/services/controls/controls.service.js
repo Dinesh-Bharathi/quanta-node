@@ -485,3 +485,47 @@ export const updateTenantRoleByUuidService = async ({
     connection.release();
   }
 };
+
+export const deleteTenantRoleByUuidService = async ({ roleUuid }) => {
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    // Get role_id
+    const [roleRows] = await connection.query(
+      `SELECT role_id FROM tbl_roles WHERE role_uuid = ? AND is_delete = 0`,
+      [roleUuid]
+    );
+
+    if (!roleRows.length)
+      throw new Error("Invalid or already deleted role UUID.");
+    const roleId = roleRows[0].role_id;
+
+    // Soft delete role (mark as deleted)
+    await connection.query(
+      `DELETE FROM tbl_roles
+       WHERE role_id = ?`,
+      [roleId]
+    );
+
+    // Optionally, remove or deactivate role permissions
+    await connection.query(
+      `DELETE FROM tbl_role_permissions WHERE role_id = ?`,
+      [roleId]
+    );
+
+    await connection.commit();
+
+    return {
+      roleUuid,
+      deleted: true,
+      message: "Role deleted successfully",
+    };
+  } catch (error) {
+    await connection.rollback();
+    throw error;
+  } finally {
+    connection.release();
+  }
+};

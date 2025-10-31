@@ -1,5 +1,6 @@
 import {
   addTenantRoleService,
+  deleteTenantRoleByUuidService,
   getTenantMenuService,
   getTenantRoleByUuidService,
   getTenantRolesService,
@@ -112,6 +113,8 @@ export const updateTenantRoleByUuid = async (req, res, next) => {
     const { roleUuid } = req.params;
     const { roleName, description, permissions } = req.body;
 
+    console.log("first", req.body);
+
     if (!roleUuid)
       return res.status(400).json({
         success: false,
@@ -135,6 +138,29 @@ export const updateTenantRoleByUuid = async (req, res, next) => {
       success: true,
       message: "Role updated successfully.",
       data: updatedRole,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteRoleByUuid = async (req, res, next) => {
+  try {
+    const { roleUuid } = req.params;
+
+    if (!roleUuid)
+      return res.status(400).json({
+        success: false,
+        message: "Role UUID is required.",
+      });
+
+    const deleteRow = await deleteTenantRoleByUuidService({ roleUuid });
+
+    res.status(200).json({
+      success: true,
+      message: "Role deleted successfully.",
+      data: deleteRow,
+      // data: updatedRole,
     });
   } catch (error) {
     next(error);

@@ -3,6 +3,7 @@ import { cryptoMiddleware } from "../../middlewares/cryptoMiddleware.js";
 import { verifyToken } from "../../middlewares/authMiddleware.js";
 import {
   addTenantRole,
+  deleteRoleByUuid,
   getTenantMenus,
   getTenantRoleByUuid,
   getTenantRoles,
@@ -13,10 +14,41 @@ import {
 const router = Router();
 
 router.get("/menu/:userUuid", verifyToken, cryptoMiddleware, getUserMenus);
-router.get("/tenant/roles/:tentUuid", getTenantRoles);
-router.get("/tenant/subscribed/menus/:tentUuid", getTenantMenus);
-router.post("/tenant/roles/:tentUuid", addTenantRole);
-router.get("/tenant/role/permission/:roleUuid", getTenantRoleByUuid);
-router.put("/tenant/role/permission/:roleUuid", updateTenantRoleByUuid);
+router.get(
+  "/tenant/roles/:tentUuid",
+  verifyToken,
+  cryptoMiddleware,
+  getTenantRoles
+);
+router.get(
+  "/tenant/subscribed/menus/:tentUuid",
+  verifyToken,
+  cryptoMiddleware,
+  getTenantMenus
+);
+router.post(
+  "/tenant/roles/:tentUuid",
+  verifyToken,
+  cryptoMiddleware,
+  addTenantRole
+);
+router.get(
+  "/tenant/role/permission/:roleUuid",
+  verifyToken,
+  cryptoMiddleware,
+  getTenantRoleByUuid
+);
+router.put(
+  "/tenant/role/permission/:roleUuid",
+  verifyToken,
+  cryptoMiddleware,
+  updateTenantRoleByUuid
+);
+router.delete(
+  "/tenant/role/permission/:roleUuid",
+  verifyToken,
+  cryptoMiddleware,
+  deleteRoleByUuid
+);
 
 export default router;

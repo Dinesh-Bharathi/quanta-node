@@ -52,6 +52,7 @@ passport.use(
     async (accessToken, refreshToken, profile, done) => {
       const connection = await pool.getConnection();
       try {
+        console.log("profile", profile);
         await connection.beginTransaction();
 
         const email = profile.emails?.[0]?.value;
@@ -62,6 +63,8 @@ passport.use(
           `SELECT u.user_id FROM tbl_tent_users1 u WHERE u.user_email = ?`,
           [email]
         );
+
+        console.log("existingUser", existingUser);
 
         if (existingUser.length > 0) {
           await connection.rollback();

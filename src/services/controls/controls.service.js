@@ -1,5 +1,6 @@
 import { pool } from "../../config/db.js";
 import { generateShortUUID } from "../../utils/generateUUID.js";
+import { hashPassword } from "../../utils/hashPassword.js";
 
 export const getTenantMenuService = async (tentUuid) => {
   const [menuRows] = await pool.query(
@@ -272,7 +273,8 @@ export const getTenantRolesService = async (tentUuid) => {
     LEFT JOIN tbl_tent_users1 ttu2 ON tr.updated_by = ttu2.user_id
     INNER JOIN tbl_tent_master1 ttm ON tr.tent_id = ttm.tent_id
     WHERE ttm.tent_uuid = ?
-      AND tr.is_delete = 0;`,
+      AND tr.is_delete = 0
+    ORDER BY tr.created_at ASC;`,
     [tentUuid]
   );
 
@@ -528,4 +530,208 @@ export const deleteTenantRoleByUuidService = async ({ roleUuid }) => {
   } finally {
     connection.release();
   }
+};
+
+export const getTenantUsersService = async ({ tentUuid }) => {
+  const [rows] = await pool.query(
+    `
+    SELECT 
+      ttu.user_uuid,
+      ttu.user_name,
+      ttu.user_email,
+      ttu.user_country_code,
+      ttu.user_phone,
+      ttu.is_owner,
+      ttu.created_on,
+      ttu.modified_on,
+      tr.role_uuid,
+      tr.name as role_name
+    FROM tbl_tent_users1 ttu
+    LEFT JOIN tbl_user_roles tur ON ttu.user_id = tur.user_id
+    LEFT JOIN tbl_roles tr ON tur.role_id = tr.role_id
+    WHERE ttu.tent_id = (SELECT tent_id FROM tbl_tent_master1 WHERE tent_uuid = ?)
+    ORDER BY ttu.created_on ASC
+    `,
+    [tentUuid]
+  );
+
+  return rows;
+};
+
+export const updateTenantUserService = async ({
+  userUuid,
+  user_name,
+  user_email,
+  user_phone,
+  role_uuid,
+}) => {
+  const connection = await pool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    // Find user_id by UUID
+    const [[userRow]] = await connection.query(
+      "SELECT user_id FROM tbl_tent_users1 WHERE user_uuid = ?",
+      [userUuid]
+    );
+    if (!userRow) throw new Error("User not found");
+
+    const userId = userRow.user_id;
+
+    // Update user details
+    await connection.query(
+      `UPDATE tbl_tent_users1 
+       SET user_name = ?, user_email = ?, user_phone = ?
+       WHERE user_id = ?`,
+      [user_name, user_email, user_phone, userId]
+    );
+
+    // Update or insert user role
+    if (role_uuid) {
+      const [existingRole] = await connection.query(
+        `SELECT id FROM tbl_user_roles WHERE user_id = ?`,
+        [userId]
+      );
+
+      const [[role_id]] = await connection.query(
+        `SELECT role_id FROM tbl_roles WHERE role_uuid = ?`,
+        [role_uuid]
+      );
+
+      if (existingRole.length > 0) {
+        await connection.query(
+          `UPDATE tbl_user_roles SET role_id = ? WHERE user_id = ?`,
+          [role_id.role_id, userId]
+        );
+      } else {
+        await connection.query(
+          `INSERT INTO tbl_user_roles (user_id, role_id) VALUES (?, ?)`,
+          [userId, role_id]
+        );
+      }
+    }
+
+    await connection.commit();
+
+    return { userUuid, user_name, user_email, user_phone, role_uuid };
+  } catch (err) {
+    await connection.rollback();
+    console.error("updateTenantUserService error:", err);
+    throw err;
+  } finally {
+    connection.release();
+  }
+};
+
+export const deleteTenantUserService = async ({ userUuid }) => {
+  await pool.query(`DELETE FROM tbl_tent_users1 WHERE user_uuid = ?`, [
+    userUuid,
+  ]);
+};
+
+export const createTenantUserService = async ({
+  tentUuid,
+  user_name,
+  user_email,
+  user_country_code,
+  user_phone,
+  password,
+  role_uuid,
+  is_owner,
+}) => {
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.beginTransaction();
+
+    // Get tenant_id
+    const [[tenantRow]] = await connection.query(
+      "SELECT tent_id FROM tbl_tent_master1 WHERE tent_uuid = ?",
+      [tentUuid]
+    );
+
+    if (!tenantRow) throw new Error("Tenant not found");
+
+    const tent_id = tenantRow.tent_id;
+    const user_uuid = generateShortUUID();
+    const hashedPassword = await hashPassword(password);
+
+    // Insert into tbl_tent_users1
+    const [result] = await connection.query(
+      `INSERT INTO tbl_tent_users1 
+       (tent_id, user_uuid, user_name, user_email, user_country_code, user_phone, password, is_owner)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        tent_id,
+        user_uuid,
+        user_name,
+        user_email,
+        user_country_code || null,
+        user_phone || null,
+        hashedPassword,
+        is_owner,
+      ]
+    );
+
+    const user_id = result.insertId;
+
+    const [[role_id]] = await connection.query(
+      `SELECT role_id FROM tbl_roles WHERE tent_id = ? AND role_uuid = ?`,
+      [tent_id, role_uuid]
+    );
+
+    // If role is provided, assign it
+    if (role_id) {
+      await connection.query(
+        `INSERT INTO tbl_user_roles (user_id, role_id) VALUES (?, ?)`,
+        [user_id, role_id.role_id]
+      );
+    }
+
+    await connection.commit();
+
+    return {
+      user_uuid,
+      user_name,
+      user_email,
+      user_country_code,
+      user_phone,
+      role_uuid,
+      is_owner,
+      created_on: new Date(),
+    };
+  } catch (err) {
+    await connection.rollback();
+    console.error("createTenantUserService error:", err);
+    throw err;
+  } finally {
+    connection.release();
+  }
+};
+
+export const getUserByUuidService = async (userUuid) => {
+  const [rows] = await pool.query(
+    `
+    SELECT 
+      ttu.user_uuid,
+      ttu.user_name,
+      ttu.user_email,
+      ttu.user_country_code,
+      ttu.user_phone,
+      ttu.is_owner,
+      ttu.created_on,
+      ttu.modified_on,
+      tr.role_uuid,
+      tr.name as role_name
+    FROM tbl_tent_users1 AS ttu
+    LEFT JOIN tbl_user_roles AS tur ON ttu.user_id = tur.user_id
+    LEFT JOIN tbl_roles AS tr ON tur.role_id = tr.role_id
+    WHERE ttu.user_uuid = ?
+    LIMIT 1
+    `,
+    [userUuid]
+  );
+
+  // Return null if no result found
+  return rows.length ? rows[0] : null;
 };

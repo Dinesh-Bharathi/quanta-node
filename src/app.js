@@ -34,6 +34,8 @@ const corsOptions = {
   optionsSuccessStatus: 200,
 };
 
+console.log("db", process.env.DATABASE_URL);
+
 // Core Middleware
 app.disable("x-powered-by");
 app.use(helmet());

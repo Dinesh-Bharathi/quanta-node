@@ -4,6 +4,7 @@ import { generateShortUUID } from "../utils/generateUUID.js";
 import authRoutes from "./auth.route.js";
 import settingsRoutes from "./settings/settings.route.js";
 import controlsRoutes from "./controls/controls.route.js";
+import prisma from "../config/prismaClient.js";
 
 const router = Router();
 
@@ -31,6 +32,18 @@ router.get("/check-db", async (req, res, next) => {
       message: "Database connection failed ❌",
       error: error.message,
     });
+  }
+});
+
+router.get("/prisma", async (req, res, next) => {
+  try {
+    const tenants = await prisma.tbl_tent_master.findMany({
+      where: { tent_status: "active" },
+      select: { tent_id: true, tent_name: true, tent_email: true },
+    });
+    res.json({ data: tenants });
+  } catch (error) {
+    next(error);
   }
 });
 

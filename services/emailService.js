@@ -1,4 +1,5 @@
-import { loadTemplate, sendEmail } from "../utils/nodemailer.js";
+// import { loadTemplate, sendEmail } from "../utils/nodemailer.js";
+import { loadTemplate, sendEmail } from "../utils/resendEmail.js";
 import { generateToken } from "../utils/generateToken.js";
 
 export async function sendMagicLinkEmail(user) {
@@ -20,9 +21,15 @@ export async function sendMagicLinkEmail(user) {
     .replace(/{{current_year}}/g, currentYear);
 
   await sendEmail({
-    from: `"Quanta Auth" <${process.env.SMTP_USER}>`,
     to: user.user_email,
     subject: "Welcome to Quanta – Verify your email",
     html,
   });
+
+  // await sendEmail({
+  //   from: `"Quanta Auth" <${process.env.SMTP_USER}>`,
+  //   to: user.user_email,
+  //   subject: "Welcome to Quanta – Verify your email",
+  //   html,
+  // });
 }

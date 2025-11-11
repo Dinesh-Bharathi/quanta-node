@@ -1,7 +1,7 @@
 import prisma from "../../config/prismaClient.js";
 import { generateShortUUID } from "../../utils/generateUUID.js";
 import { generateToken } from "../../utils/generateToken.js";
-import { hashPassword } from "../../utils/hashPassword.js";
+import { comparePassword, hashPassword } from "../../utils/hashPassword.js";
 import { createDefaultSetupForTenant } from "./tenantSetup.js";
 import { sendMagicLinkEmail } from "../../services/emailService.js";
 
@@ -198,13 +198,13 @@ export async function authenticateUser({ email, password }) {
   const token = generateToken({
     user_uuid: user.user_uuid,
     user_email: user.user_email,
-    tent_uuid: user.tbl_tent_master1.tent_uuid,
+    tent_uuid: user?.tbl_tent_master1?.tent_uuid || null,
   });
 
   return {
     token,
     user_uuid: user.user_uuid,
-    tent_uuid: user.tbl_tent_master1.tent_uuid,
+    tent_uuid: user?.tbl_tent_master1?.tent_uuid || null,
   };
 }
 

@@ -1,0 +1,426 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model tbl_admin_master {
+  admin_id       Int                      @id @default(autoincrement())
+  admin_username String?                  @db.VarChar(255)
+  admin_email_id String?                  @db.VarChar(255)
+  admin_password String?                  @db.VarChar(255)
+  admin_phone_no String?                  @db.VarChar(19)
+  admin_uuid     String                   @unique(map: "admin_uuid") @db.Char(8)
+  created_on     DateTime?                @default(now()) @db.Timestamp(0)
+  modified_on    DateTime?                @default(now()) @db.Timestamp(0)
+  status         tbl_admin_master_status?
+}
+
+model tbl_bank_details {
+  bank_id     Int       @id @default(autoincrement())
+  bank_name   String?   @db.VarChar(255)
+  acc_no      BigInt?
+  ifsc_code   String?   @db.VarChar(255)
+  branch_name String?   @db.VarChar(255)
+  bank_uuid   String    @unique(map: "bank_uuid") @db.Char(8)
+  tent_id     Int
+  created_on  DateTime? @default(now()) @db.DateTime(0)
+  modified_on DateTime? @default(now()) @db.DateTime(0)
+
+  @@index([tent_id], map: "tent_id")
+}
+
+model tbl_cust_billing_order {
+  bill_id      Int       @id @default(autoincrement())
+  cust_id      Int
+  bill_date    DateTime? @db.Date
+  supply_date  DateTime? @db.Date
+  Purchase_no  String?   @db.VarChar(25)
+  supply_place String?   @db.VarChar(25)
+  vechile_no   String?   @db.VarChar(25)
+  comments     String?   @db.VarChar(25)
+  bill_uuid    String    @unique(map: "bill_uuid") @db.Char(8)
+  tent_id      Int
+  created_on   DateTime? @default(now()) @db.DateTime(0)
+  modified_on  DateTime? @default(now()) @db.DateTime(0)
+  total_amount Decimal   @default(0.00) @db.Decimal(10, 2)
+  cgst         Int       @default(0)
+  sgst         Int       @default(0)
+  igst         Int       @default(0)
+  grand_total  Int       @default(0)
+  total_tax    Decimal   @default(0.00) @db.Decimal(10, 2)
+  bill_no      String?   @db.VarChar(255)
+
+  @@index([cust_id], map: "cust_id")
+  @@index([tent_id], map: "tent_id")
+}
+
+model tbl_cust_billing_product {
+  bill_product_id Int       @id @default(autoincrement())
+  bill_id         Int
+  product_id      Int
+  tent_id         Int
+  bill_reference  String?   @db.VarChar(255)
+  bill_quantity   Int
+  prod_bill_uuid  String    @unique(map: "prod_bill_uuid") @db.Char(8)
+  bill_amount     Decimal   @default(0.00) @db.Decimal(10, 2)
+  created_on      DateTime? @default(now()) @db.DateTime(0)
+  modified_on     DateTime? @default(now()) @db.DateTime(0)
+
+  @@index([bill_id], map: "bill_id")
+  @@index([product_id], map: "product_id")
+  @@index([tent_id], map: "tent_id")
+}
+
+model tbl_cust_master {
+  cust_id         Int                          @id @default(autoincrement())
+  cust_name       String                       @db.VarChar(255)
+  cust_comp       String                       @db.VarChar(100)
+  cust_mail       String                       @db.VarChar(150)
+  cust_phone      String                       @db.VarChar(15)
+  cust_street     String                       @db.VarChar(255)
+  cust_city       String                       @db.VarChar(100)
+  cust_state      String                       @db.VarChar(100)
+  cust_country    String                       @db.VarChar(100)
+  cust_pincode    String                       @db.VarChar(10)
+  cust_gst        String                       @db.VarChar(50)
+  tent_id         Int
+  cust_status     tbl_cust_master_cust_status? @default(active)
+  created_on      DateTime?                    @default(now()) @db.DateTime(0)
+  modified_on     DateTime?                    @default(now()) @db.DateTime(0)
+  cust_uuid       String                       @unique(map: "cust_uuid") @db.Char(8)
+  tbl_tent_master tbl_tent_master              @relation(fields: [tent_id], references: [tent_id], onDelete: Cascade, map: "fk_cust_tenant")
+
+  @@index([tent_id], map: "tent_id")
+}
+
+model tbl_menus {
+  menu_id              BigInt                 @id @default(autoincrement())
+  menu_uuid            String                 @db.Char(8)
+  menu_key             String                 @db.VarChar(100)
+  menu_group           String?                @default("Management") @db.VarChar(100)
+  is_main_menu         Boolean?               @default(true)
+  is_footer_menu       Boolean?               @default(false)
+  menu_name            String                 @db.VarChar(255)
+  icon                 String?                @db.VarChar(100)
+  path                 String?                @db.VarChar(255)
+  parent_menu_id       BigInt?
+  sort_order           Int?                   @default(0)
+  created_on           DateTime?              @default(now()) @db.Timestamp(0)
+  modified_on          DateTime?              @default(now()) @db.Timestamp(0)
+  tbl_menus            tbl_menus?             @relation("tbl_menusTotbl_menus", fields: [parent_menu_id], references: [menu_id], onUpdate: Restrict, map: "fk_menus_parent")
+  other_tbl_menus      tbl_menus[]            @relation("tbl_menusTotbl_menus")
+  tbl_plan_menus       tbl_plan_menus[]
+  tbl_role_permissions tbl_role_permissions[]
+
+  @@index([parent_menu_id], map: "fk_menus_parent")
+}
+
+model tbl_plan_menus {
+  id                     BigInt                 @id @default(autoincrement())
+  plan_id                BigInt
+  menu_id                BigInt
+  tbl_subscription_plans tbl_subscription_plans @relation(fields: [plan_id], references: [plan_id], onDelete: Cascade, onUpdate: Restrict, map: "tbl_plan_menus_ibfk_1")
+  tbl_menus              tbl_menus              @relation(fields: [menu_id], references: [menu_id], onDelete: Cascade, onUpdate: Restrict, map: "tbl_plan_menus_ibfk_2")
+
+  @@unique([plan_id, menu_id], map: "uniq_plan_menu")
+  @@index([menu_id], map: "menu_id")
+}
+
+model tbl_product_master {
+  product_id     Int                                @id @default(autoincrement())
+  product_name   String                             @db.VarChar(50)
+  hsn_code       String                             @db.VarChar(25)
+  product_desc   String?                            @db.VarChar(150)
+  product_price  Int
+  product_status tbl_product_master_product_status? @default(active)
+  created_on     DateTime?                          @default(now()) @db.DateTime(0)
+  modified_on    DateTime?                          @default(now()) @db.DateTime(0)
+  product_uuid   String                             @unique(map: "product_uuid") @db.Char(8)
+  tent_id        Int
+
+  @@index([tent_id], map: "tent_id")
+}
+
+model tbl_role_permissions {
+  id         BigInt    @id @default(autoincrement())
+  role_id    BigInt
+  menu_id    BigInt
+  can_read   Boolean?  @default(false)
+  can_add    Boolean?  @default(false)
+  can_update Boolean?  @default(false)
+  can_delete Boolean?  @default(false)
+  tbl_menus  tbl_menus @relation(fields: [menu_id], references: [menu_id], onDelete: Cascade, onUpdate: Restrict, map: "fk_role_permissions_menu")
+  tbl_roles  tbl_roles @relation(fields: [role_id], references: [role_id], onDelete: Cascade, onUpdate: Restrict, map: "fk_role_permissions_role")
+
+  @@unique([role_id, menu_id], map: "uniq_role_menu")
+  @@index([menu_id], map: "fk_role_permissions_menu")
+}
+
+model tbl_roles {
+  role_id                                               BigInt                 @id @default(autoincrement())
+  role_uuid                                             String                 @unique(map: "role_uuid") @db.Char(8)
+  tent_id                                               BigInt?
+  name                                                  String                 @db.VarChar(100)
+  description                                           String?                @db.VarChar(255)
+  role_type                                             tbl_roles_role_type?   @default(CUSTOM)
+  is_active                                             Boolean?               @default(true)
+  is_delete                                             Boolean?               @default(false)
+  created_by                                            BigInt?
+  updated_by                                            BigInt?
+  deleted_by                                            BigInt?
+  created_at                                            DateTime?              @default(now()) @db.Timestamp(0)
+  updated_at                                            DateTime?              @db.Timestamp(0)
+  deleted_at                                            DateTime?              @db.Timestamp(0)
+  tbl_role_permissions                                  tbl_role_permissions[]
+  tbl_tent_users1_tbl_roles_created_byTotbl_tent_users1 tbl_tent_users1?       @relation("tbl_roles_created_byTotbl_tent_users1", fields: [created_by], references: [user_id], map: "fk_roles_created_by")
+  tbl_tent_users1_tbl_roles_deleted_byTotbl_tent_users1 tbl_tent_users1?       @relation("tbl_roles_deleted_byTotbl_tent_users1", fields: [deleted_by], references: [user_id], map: "fk_roles_deleted_by")
+  tbl_tent_master1                                      tbl_tent_master1?      @relation(fields: [tent_id], references: [tent_id], onDelete: Cascade, map: "fk_roles_tenant")
+  tbl_tent_users1_tbl_roles_updated_byTotbl_tent_users1 tbl_tent_users1?       @relation("tbl_roles_updated_byTotbl_tent_users1", fields: [updated_by], references: [user_id], map: "fk_roles_updated_by")
+  tbl_user_roles                                        tbl_user_roles[]
+
+  @@unique([tent_id, name], map: "uniq_tenant_role")
+  @@index([created_by], map: "fk_roles_created_by")
+  @@index([deleted_by], map: "fk_roles_deleted_by")
+  @@index([updated_by], map: "fk_roles_updated_by")
+}
+
+model tbl_sessions {
+  session_id     String         @id @db.Char(36)
+  user_id        Int
+  token          String         @db.Text
+  expires_at     DateTime       @db.Timestamp(0)
+  created_at     DateTime?      @default(now()) @db.Timestamp(0)
+  revoked        Boolean?       @default(false)
+  tbl_tent_users tbl_tent_users @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: Restrict, map: "tbl_sessions_ibfk_1")
+
+  @@index([user_id], map: "user_id")
+}
+
+model tbl_subscription_plans {
+  plan_id                  BigInt                     @id @default(autoincrement())
+  plan_uuid                String                     @unique(map: "plan_uuid") @db.Char(8)
+  plan_name                String                     @unique(map: "plan_name") @db.VarChar(100)
+  plan_description         String?                    @db.Text
+  price_monthly            Decimal?                   @default(0.00) @db.Decimal(10, 2)
+  price_yearly             Decimal?                   @default(0.00) @db.Decimal(10, 2)
+  duration_days            Int?
+  is_trial                 Boolean?                   @default(false)
+  is_active                Boolean?                   @default(true)
+  created_on               DateTime?                  @default(now()) @db.Timestamp(0)
+  modified_on              DateTime?                  @default(now()) @db.Timestamp(0)
+  tbl_plan_menus           tbl_plan_menus[]
+  tbl_tenant_subscriptions tbl_tenant_subscriptions[]
+}
+
+model tbl_tenant_subscriptions {
+  subscription_id        BigInt                                   @id @default(autoincrement())
+  subscription_uuid      String                                   @unique(map: "subscription_uuid") @db.Char(8)
+  tent_id                BigInt
+  plan_id                BigInt
+  start_date             DateTime                                 @db.DateTime(0)
+  end_date               DateTime                                 @db.DateTime(0)
+  is_active              Boolean?                                 @default(true)
+  is_auto_renew          Boolean?                                 @default(true)
+  payment_status         tbl_tenant_subscriptions_payment_status? @default(FREE)
+  created_on             DateTime?                                @default(now()) @db.Timestamp(0)
+  modified_on            DateTime?                                @default(now()) @db.Timestamp(0)
+  tbl_tent_master1       tbl_tent_master1                         @relation(fields: [tent_id], references: [tent_id], onDelete: Cascade, onUpdate: Restrict, map: "tbl_tenant_subscriptions_ibfk_1")
+  tbl_subscription_plans tbl_subscription_plans                   @relation(fields: [plan_id], references: [plan_id], onDelete: Cascade, onUpdate: Restrict, map: "tbl_tenant_subscriptions_ibfk_2")
+
+  @@unique([tent_id, is_active], map: "uniq_tenant_active_plan")
+  @@index([plan_id], map: "plan_id")
+}
+
+model tbl_tent_config {
+  config_id        Int              @id @default(autoincrement())
+  tent_config_uuid String           @unique(map: "tent_config_uuid") @db.VarChar(8)
+  tent_uuid        String           @db.VarChar(8)
+  name             String?          @db.VarChar(100)
+  description      String?          @db.Text
+  permissions      String?          @db.Text
+  role_modules     String?          @db.Text
+  status           Boolean?         @default(true)
+  created_at       DateTime         @db.Date
+  updated_at       DateTime         @db.Date
+  tbl_tent_master  tbl_tent_master  @relation(fields: [tent_uuid], references: [tent_uuid], onDelete: Cascade, onUpdate: Restrict, map: "tbl_tent_config_ibfk_1")
+  tbl_tent_users   tbl_tent_users[]
+
+  @@index([tent_uuid], map: "tent_uuid")
+}
+
+model tbl_tent_group {
+  group_id     Int                          @id
+  group_name   String                       @db.VarChar(255)
+  group_desc   String?                      @db.Text
+  group_status tbl_tent_group_group_status? @default(active)
+  created_on   DateTime?                    @default(now()) @db.DateTime(0)
+  modified_on  DateTime?                    @default(now()) @db.DateTime(0)
+  group_uuid   String                       @unique(map: "group_uuid") @db.Char(8)
+}
+
+model tbl_tent_master {
+  tent_id         Int                          @id
+  tent_phone_no   String?                      @db.VarChar(15)
+  tent_name       String                       @db.VarChar(255)
+  tent_email      String                       @db.VarChar(255)
+  tent_gst_no     String?                      @db.VarChar(15)
+  tent_logo       Bytes?
+  tent_street     String?                      @db.VarChar(255)
+  tent_city       String?                      @db.VarChar(255)
+  tent_state      String?                      @db.VarChar(255)
+  tent_country    String?                      @db.VarChar(255)
+  tent_pincode    String?                      @db.VarChar(10)
+  tent_insta      String?                      @db.VarChar(255)
+  tent_youtube    String?                      @db.VarChar(255)
+  tent_facebook   String?                      @db.VarChar(255)
+  tent_twitter    String?                      @db.VarChar(255)
+  tent_web        String?                      @db.VarChar(255)
+  tent_status     tbl_tent_master_tent_status? @default(active)
+  created_on      DateTime?                    @default(now()) @db.DateTime(0)
+  modified_on     DateTime?                    @default(now()) @db.DateTime(0)
+  tent_uuid       String                       @unique(map: "tent_uuid") @db.Char(8)
+  is_verified     Boolean?                     @default(false)
+  subscription    Int?                         @default(0)
+  is_trial        Boolean?                     @default(false)
+  tbl_cust_master tbl_cust_master[]
+  tbl_tent_config tbl_tent_config[]
+  tbl_tent_users  tbl_tent_users[]
+}
+
+model tbl_tent_master1 {
+  tent_id                  BigInt                     @id @default(autoincrement())
+  tent_uuid                String                     @unique(map: "tent_uuid") @db.Char(8)
+  tent_name                String                     @db.VarChar(100)
+  tent_country_code        String?                    @db.VarChar(10)
+  tent_phone               String?                    @db.VarChar(20)
+  is_mobile_verified       Boolean?                   @default(false)
+  tent_email               String?                    @unique(map: "tent_email") @db.VarChar(150)
+  is_email_verified        Boolean?                   @default(false)
+  tent_logo                String?                    @db.VarChar(255)
+  tent_address1            String?                    @db.VarChar(255)
+  tent_address2            String?                    @db.VarChar(255)
+  tent_state               String?                    @db.VarChar(100)
+  tent_country             String?                    @db.VarChar(100)
+  tent_postalcode          String?                    @db.VarChar(20)
+  tent_status              Boolean?                   @default(true)
+  created_on               DateTime?                  @default(now()) @db.Timestamp(0)
+  modified_on              DateTime?                  @default(now()) @db.Timestamp(0)
+  tbl_roles                tbl_roles[]
+  tbl_tenant_subscriptions tbl_tenant_subscriptions[]
+  tbl_tent_users1          tbl_tent_users1[]
+}
+
+model tbl_tent_type {
+  type_id          Int                             @id
+  tent_type        String                          @db.VarChar(255)
+  type_desc        String?                         @db.Text
+  tent_type_status tbl_tent_type_tent_type_status? @default(active)
+  group_id         Int
+  created_on       DateTime?                       @default(now()) @db.DateTime(0)
+  modified_on      DateTime?                       @default(now()) @db.DateTime(0)
+  type_uuid        String                          @unique(map: "type_uuid") @db.Char(8)
+
+  @@index([group_id], map: "group_id")
+}
+
+model tbl_tent_users {
+  user_id          Int              @id @default(autoincrement())
+  user_uuid        String           @unique(map: "user_uuid") @db.Char(36)
+  name             String           @db.VarChar(255)
+  email            String           @unique(map: "email") @db.VarChar(255)
+  password         String           @db.VarChar(255)
+  role             String           @db.VarChar(100)
+  created_at       DateTime?        @default(now()) @db.Timestamp(0)
+  updated_at       DateTime?        @default(now()) @db.Timestamp(0)
+  tent_uuid        String           @db.Char(8)
+  tent_config_uuid String?          @db.Char(8)
+  phone_number     String?          @db.VarChar(20)
+  profile_img      String?          @db.VarChar(255)
+  tbl_sessions     tbl_sessions[]
+  tbl_tent_config  tbl_tent_config? @relation(fields: [tent_config_uuid], references: [tent_config_uuid], map: "fk_tent_config_uuid")
+  tbl_tent_master  tbl_tent_master  @relation(fields: [tent_uuid], references: [tent_uuid], onDelete: Cascade, map: "fk_tent_users_tent_uuid")
+
+  @@index([tent_config_uuid], map: "fk_tent_config_uuid")
+  @@index([tent_uuid], map: "fk_tent_users_tent_uuid")
+}
+
+model tbl_tent_users1 {
+  user_id                                         BigInt            @id @default(autoincrement())
+  tent_id                                         BigInt?
+  user_uuid                                       String            @unique(map: "user_uuid") @db.Char(8)
+  user_name                                       String            @db.VarChar(100)
+  user_email                                      String?           @unique(map: "user_email") @db.VarChar(150)
+  user_country_code                               String?           @db.VarChar(10)
+  user_phone                                      String?           @db.VarChar(20)
+  password                                        String            @db.VarChar(255)
+  is_owner                                        Boolean?          @default(false)
+  created_on                                      DateTime?         @default(now()) @db.Timestamp(0)
+  modified_on                                     DateTime?         @default(now()) @db.Timestamp(0)
+  is_email_verified                               Boolean?          @default(false)
+  tbl_roles_tbl_roles_created_byTotbl_tent_users1 tbl_roles[]       @relation("tbl_roles_created_byTotbl_tent_users1")
+  tbl_roles_tbl_roles_deleted_byTotbl_tent_users1 tbl_roles[]       @relation("tbl_roles_deleted_byTotbl_tent_users1")
+  tbl_roles_tbl_roles_updated_byTotbl_tent_users1 tbl_roles[]       @relation("tbl_roles_updated_byTotbl_tent_users1")
+  tbl_tent_master1                                tbl_tent_master1? @relation(fields: [tent_id], references: [tent_id], onDelete: Cascade, onUpdate: Restrict, map: "tbl_tent_users1_ibfk_1")
+  tbl_user_roles                                  tbl_user_roles[]
+
+  @@index([tent_id], map: "tent_id")
+}
+
+model tbl_user_roles {
+  id              BigInt          @id @default(autoincrement())
+  user_id         BigInt
+  role_id         BigInt
+  assigned_at     DateTime?       @default(now()) @db.Timestamp(0)
+  tbl_roles       tbl_roles       @relation(fields: [role_id], references: [role_id], onDelete: Cascade, onUpdate: Restrict, map: "fk_ur_role")
+  tbl_tent_users1 tbl_tent_users1 @relation(fields: [user_id], references: [user_id], onDelete: Cascade, onUpdate: Restrict, map: "fk_ur_user")
+
+  @@unique([user_id, role_id], map: "uniq_user_role")
+  @@index([role_id], map: "fk_ur_role")
+}
+
+enum tbl_tent_group_group_status {
+  active
+  inactive
+}
+
+enum tbl_tent_type_tent_type_status {
+  active
+  inactive
+}
+
+enum tbl_roles_role_type {
+  SYSTEM
+  CUSTOM
+}
+
+enum tbl_product_master_product_status {
+  active
+  inactive
+}
+
+enum tbl_tenant_subscriptions_payment_status {
+  PENDING
+  SUCCESS
+  FAILED
+  FREE
+}
+
+enum tbl_admin_master_status {
+  active
+  inactive
+}
+
+enum tbl_cust_master_cust_status {
+  active
+  inactive
+}
+
+enum tbl_tent_master_tent_status {
+  active
+  inactive
+}

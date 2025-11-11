@@ -1,6 +1,6 @@
 generator client {
   provider = "prisma-client-js"
-  output   = "../src/generated/prisma"
+  output   = "../generated/prisma"
 }
 
 datasource db {
@@ -350,21 +350,22 @@ model tbl_tent_users {
 }
 
 model tbl_tent_users1 {
-  user_id                                         BigInt           @id @default(autoincrement())
-  tent_id                                         BigInt
-  user_uuid                                       String           @unique(map: "user_uuid") @db.Char(8)
-  user_name                                       String           @db.VarChar(100)
-  user_email                                      String?          @unique(map: "user_email") @db.VarChar(150)
-  user_country_code                               String?          @db.VarChar(10)
-  user_phone                                      String?          @db.VarChar(20)
-  password                                        String           @db.VarChar(255)
-  is_owner                                        Boolean?         @default(false)
-  created_on                                      DateTime?        @default(now()) @db.Timestamp(0)
-  modified_on                                     DateTime?        @default(now()) @db.Timestamp(0)
-  tbl_roles_tbl_roles_created_byTotbl_tent_users1 tbl_roles[]      @relation("tbl_roles_created_byTotbl_tent_users1")
-  tbl_roles_tbl_roles_deleted_byTotbl_tent_users1 tbl_roles[]      @relation("tbl_roles_deleted_byTotbl_tent_users1")
-  tbl_roles_tbl_roles_updated_byTotbl_tent_users1 tbl_roles[]      @relation("tbl_roles_updated_byTotbl_tent_users1")
-  tbl_tent_master1                                tbl_tent_master1 @relation(fields: [tent_id], references: [tent_id], onDelete: Cascade, onUpdate: Restrict, map: "tbl_tent_users1_ibfk_1")
+  user_id                                         BigInt            @id @default(autoincrement())
+  tent_id                                         BigInt?
+  user_uuid                                       String            @unique(map: "user_uuid") @db.Char(8)
+  user_name                                       String            @db.VarChar(100)
+  user_email                                      String?           @unique(map: "user_email") @db.VarChar(150)
+  user_country_code                               String?           @db.VarChar(10)
+  user_phone                                      String?           @db.VarChar(20)
+  password                                        String            @db.VarChar(255)
+  is_owner                                        Boolean?          @default(false)
+  created_on                                      DateTime?         @default(now()) @db.Timestamp(0)
+  modified_on                                     DateTime?         @default(now()) @db.Timestamp(0)
+  is_email_verified                               Boolean?          @default(false)
+  tbl_roles_tbl_roles_created_byTotbl_tent_users1 tbl_roles[]       @relation("tbl_roles_created_byTotbl_tent_users1")
+  tbl_roles_tbl_roles_deleted_byTotbl_tent_users1 tbl_roles[]       @relation("tbl_roles_deleted_byTotbl_tent_users1")
+  tbl_roles_tbl_roles_updated_byTotbl_tent_users1 tbl_roles[]       @relation("tbl_roles_updated_byTotbl_tent_users1")
+  tbl_tent_master1                                tbl_tent_master1? @relation(fields: [tent_id], references: [tent_id], onDelete: Cascade, onUpdate: Restrict, map: "tbl_tent_users1_ibfk_1")
   tbl_user_roles                                  tbl_user_roles[]
 
   @@index([tent_id], map: "tent_id")

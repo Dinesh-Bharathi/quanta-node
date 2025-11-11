@@ -28,14 +28,6 @@ transporter.verify((err) => {
 
 export default transporter;
 
-transporter.verify((err) => {
-  if (err) {
-    console.error("Email server connection error:", err);
-  } else {
-    console.log("Email server is ready to send messages");
-  }
-});
-
 /**
  * Load an HTML email template from /templates
  */

@@ -1,7 +1,8 @@
 import {
   addTenantRoleService,
+  assignUserToBranchService,
   createTenantUserService,
-  deleteTenantRoleByUuidService,
+  deleteTenantRoleService,
   deleteTenantUserService,
   getTenantMenuService,
   getTenantRoleByUuidService,
@@ -9,7 +10,7 @@ import {
   getTenantUsersService,
   getUserByUuidService,
   getUsermenuService,
-  updateTenantRoleByUuidService,
+  updateTenantRoleService,
   updateTenantUserService,
 } from "./controls.service.js";
 
@@ -35,52 +36,55 @@ export const getTenantMenus = async (req, res, next) => {
 
 export const getUserMenus = async (req, res, next) => {
   try {
-    const { userUuid } = req.params;
-    const { mainNavigation, footerNavigation } = await getUsermenuService(
-      userUuid
-    );
+    const { userUuid, branchUuid } = req.params;
+    const menus = await getUsermenuService(userUuid, branchUuid);
 
     res.status(200).json({
       success: true,
-      mainNavigation,
-      footerNavigation,
+      ...menus,
     });
-  } catch (error) {
-    next(error);
+  } catch (err) {
+    next(err);
   }
 };
 
-export const getTenantRoles = async (req, res, next) => {
+export const getTenantRoles = async (req, res) => {
   try {
     const { tentUuid } = req.params;
+    const { branchUuid = null, scope = null } = req.query;
 
-    const roles = await getTenantRolesService(tentUuid);
-
-    res.status(200).json({
-      success: true,
-      data: roles,
+    const roles = await getTenantRolesService({
+      tentUuid,
+      branchUuid,
+      scope,
     });
+
+    res.status(200).json({ success: true, data: roles });
   } catch (error) {
-    next(error);
+    console.error("getTenantRoles error:", error);
+    res.status(400).json({ success: false, message: error.message });
   }
 };
 
 export const addTenantRole = async (req, res, next) => {
   try {
     const { tentUuid } = req.params;
-    const { roleName, description, permissions } = req.body;
+    const { roleName, description, permissions, scope, branch_uuid } = req.body;
 
-    if (!roleName || !tentUuid)
+    if (!roleName || !tentUuid) {
       return res.status(400).json({
         success: false,
         message: "Role name and tenant UUID are required.",
       });
+    }
 
     const role = await addTenantRoleService({
       tentUuid,
       roleName,
       description,
       permissions,
+      scope,
+      branch_uuid,
     });
 
     res.status(201).json({
@@ -113,74 +117,75 @@ export const getTenantRoleByUuid = async (req, res, next) => {
   }
 };
 
-export const updateTenantRoleByUuid = async (req, res, next) => {
+export const updateTenantRole = async (req, res, next) => {
   try {
-    const { roleUuid } = req.params;
-    const { roleName, description, permissions } = req.body;
+    const { roleGroupUuid } = req.params;
+    const { tentUuid, roleName, description, permissions, scope, branch_uuid } =
+      req.body;
 
-    if (!roleUuid)
-      return res.status(400).json({
-        success: false,
-        message: "Role UUID is required.",
-      });
-
-    if (!roleName)
-      return res.status(400).json({
-        success: false,
-        message: "Role name is required.",
-      });
-
-    const updatedRole = await updateTenantRoleByUuidService({
-      roleUuid,
+    const updated = await updateTenantRoleService({
+      roleGroupUuid,
+      tentUuid,
       roleName,
       description,
       permissions,
+      scope,
+      branch_uuid,
     });
 
     res.status(200).json({
       success: true,
-      message: "Role updated successfully.",
-      data: updatedRole,
+      message: "Role updated successfully",
+      data: updated,
     });
   } catch (error) {
+    console.error("updateTenantRole error:", error);
     next(error);
   }
 };
 
-export const deleteRoleByUuid = async (req, res, next) => {
+export const deleteTenantRole = async (req, res, next) => {
   try {
-    const { roleUuid } = req.params;
+    const { roleGroupUuid } = req.params;
+    const { tentUuid } = req.body;
 
-    if (!roleUuid)
+    if (!roleGroupUuid || !tentUuid) {
       return res.status(400).json({
         success: false,
-        message: "Role UUID is required.",
+        message: "roleGroupUuid and tentUuid are required",
       });
+    }
 
-    const deleteRow = await deleteTenantRoleByUuidService({ roleUuid });
+    await deleteTenantRoleService({ roleGroupUuid, tentUuid });
 
     res.status(200).json({
       success: true,
-      message: "Role deleted successfully.",
-      data: deleteRow,
-      // data: updatedRole,
+      message: "Role deleted successfully",
     });
-  } catch (error) {
-    next(error);
+  } catch (err) {
+    console.error("deleteTenantRole error:", err);
+    next(err);
   }
 };
 
 // ✅ GET users + roles
-export const getTenantUsers = async (req, res, next) => {
+export const getTenantUsers = async (req, res) => {
   try {
     const { tentUuid } = req.params;
-    if (!tentUuid)
+    const { all = false, branchUuid } = req.query;
+
+    if (!tentUuid) {
       return res.status(400).json({
         success: false,
         message: "Tent UUID is required.",
       });
+    }
 
-    const users = await getTenantUsersService({ tentUuid });
+    const users = await getTenantUsersService({
+      tentUuid,
+      all: all === "true",
+      branchUuid: branchUuid ?? null,
+    });
 
     res.status(200).json({
       success: true,
@@ -196,7 +201,6 @@ export const getTenantUsers = async (req, res, next) => {
 export const updateTenantUser = async (req, res, next) => {
   try {
     const { userUuid } = req.params;
-    const { user_name, user_email, user_phone, role_uuid } = req.body;
 
     if (!userUuid)
       return res
@@ -205,10 +209,7 @@ export const updateTenantUser = async (req, res, next) => {
 
     const updated = await updateTenantUserService({
       userUuid,
-      user_name,
-      user_email,
-      user_phone,
-      role_uuid,
+      ...req.body,
     });
 
     res.status(200).json({
@@ -218,7 +219,10 @@ export const updateTenantUser = async (req, res, next) => {
     });
   } catch (error) {
     console.error("updateTenantUser error:", error);
-    res.status(500).json({ success: false, message: "Internal Server Error" });
+    res.status(400).json({
+      success: false,
+      message: error.message || "Internal Server Error",
+    });
   }
 };
 
@@ -247,15 +251,7 @@ export const deleteTenantUser = async (req, res, next) => {
 export const createTenantUser = async (req, res, next) => {
   try {
     const { tentUuid } = req.params;
-    const {
-      user_name,
-      user_email,
-      user_country_code,
-      user_phone,
-      password,
-      role_uuid,
-      is_owner = 0,
-    } = req.body;
+    const { user_name, user_email, password } = req.body;
 
     if (!tentUuid || !user_name || !user_email || !password) {
       return res.status(400).json({
@@ -267,13 +263,7 @@ export const createTenantUser = async (req, res, next) => {
 
     const newUser = await createTenantUserService({
       tentUuid,
-      user_name,
-      user_email,
-      user_country_code,
-      user_phone,
-      password,
-      role_uuid,
-      is_owner,
+      ...req.body,
     });
 
     res.status(201).json({
@@ -283,9 +273,9 @@ export const createTenantUser = async (req, res, next) => {
     });
   } catch (error) {
     console.error("createTenantUser error:", error);
-    res.status(500).json({
+    res.status(400).json({
       success: false,
-      message: "Internal Server Error",
+      message: error.message || "Internal Server Error",
     });
   }
 };
@@ -308,5 +298,24 @@ export const getTenantUsersByUuid = async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ success: false, message: "Internal server error" });
+  }
+};
+
+export const assignUserToBranch = async (req, res, next) => {
+  try {
+    const { userUuid, branchUuid } = req.body;
+    if (!userUuid || !branchUuid)
+      return res.status(400).json({
+        success: false,
+        message: "userUuid and branchUuid are required",
+      });
+
+    const out = await assignUserToBranchService({ userUuid, branchUuid });
+    res
+      .status(200)
+      .json({ success: true, message: "User assigned to branch", data: out });
+  } catch (err) {
+    console.error("assignUserToBranch error:", err);
+    res.status(400).json({ success: false, message: err.message });
   }
 };

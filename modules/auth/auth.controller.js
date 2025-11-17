@@ -18,7 +18,26 @@ import jwt from "jsonwebtoken";
 export const registerUserController = async (req, res) => {
   try {
     const result = await registerUser(req.body);
-    return successResponse(res, "Verification email sent successfully", result);
+
+    if (result.status === "verification_sent") {
+      return successResponse(
+        res,
+        "Verification email sent successfully",
+        result
+      );
+    }
+
+    if (result.status === "verification_resent") {
+      return successResponse(res, "Verification link resent", result);
+    }
+
+    if (result.status === "tenant_pending") {
+      return successResponse(
+        res,
+        "User verified but organisation not created",
+        result
+      );
+    }
   } catch (error) {
     console.error("Register User error:", error);
     return errorResponse(res, error.message || "Failed to create user", 400);
@@ -86,6 +105,7 @@ export const registerTenantController = async (req, res) => {
 
     return successResponse(res, "Tenant registered successfully", {
       tent_uuid: result.tent_uuid,
+      branch_uuid: result.branch_uuid,
       user_uuid: result.user_uuid,
     });
   } catch (error) {
@@ -103,7 +123,9 @@ export const registerTenantController = async (req, res) => {
  */
 export const loginController = async (req, res, next) => {
   try {
-    const { token, user_uuid, tent_uuid } = await authenticateUser(req.body);
+    const { token, user_uuid, tent_uuid, branch_uuid } = await authenticateUser(
+      req.body
+    );
 
     res.cookie("token", token, {
       httpOnly: true,
@@ -115,6 +137,7 @@ export const loginController = async (req, res, next) => {
     return successResponse(res, "Login successful", {
       user_uuid,
       tent_uuid,
+      branch_uuid, // 🔥 Important for branch-based routing
     });
   } catch (error) {
     console.error("Login error:", error);

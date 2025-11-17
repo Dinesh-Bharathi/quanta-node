@@ -165,6 +165,7 @@ model tbl_roles {
   role_id                                               BigInt                 @id @default(autoincrement())
   role_uuid                                             String                 @unique(map: "role_uuid") @db.Char(8)
   tent_id                                               BigInt?
+  branch_id                                             BigInt?
   name                                                  String                 @db.VarChar(100)
   description                                           String?                @db.VarChar(255)
   role_type                                             tbl_roles_role_type?   @default(CUSTOM)
@@ -176,17 +177,24 @@ model tbl_roles {
   created_at                                            DateTime?              @default(now()) @db.Timestamp(0)
   updated_at                                            DateTime?              @db.Timestamp(0)
   deleted_at                                            DateTime?              @db.Timestamp(0)
+  role_group_uuid                                       String                 @db.Char(8)
   tbl_role_permissions                                  tbl_role_permissions[]
+  tbl_branches                                          tbl_branches?          @relation(fields: [branch_id], references: [branch_id], onDelete: Cascade, onUpdate: Restrict, map: "fk_roles_branch")
   tbl_tent_users1_tbl_roles_created_byTotbl_tent_users1 tbl_tent_users1?       @relation("tbl_roles_created_byTotbl_tent_users1", fields: [created_by], references: [user_id], map: "fk_roles_created_by")
   tbl_tent_users1_tbl_roles_deleted_byTotbl_tent_users1 tbl_tent_users1?       @relation("tbl_roles_deleted_byTotbl_tent_users1", fields: [deleted_by], references: [user_id], map: "fk_roles_deleted_by")
   tbl_tent_master1                                      tbl_tent_master1?      @relation(fields: [tent_id], references: [tent_id], onDelete: Cascade, map: "fk_roles_tenant")
   tbl_tent_users1_tbl_roles_updated_byTotbl_tent_users1 tbl_tent_users1?       @relation("tbl_roles_updated_byTotbl_tent_users1", fields: [updated_by], references: [user_id], map: "fk_roles_updated_by")
   tbl_user_roles                                        tbl_user_roles[]
 
-  @@unique([tent_id, name], map: "uniq_tenant_role")
+  @@unique([tent_id, name, branch_id], map: "uniq_tenant_role")
   @@index([created_by], map: "fk_roles_created_by")
   @@index([deleted_by], map: "fk_roles_deleted_by")
   @@index([updated_by], map: "fk_roles_updated_by")
+  @@index([branch_id], map: "idx_role_branch_id")
+  @@index([tent_id], map: "idx_tent_id")
+  @@index([role_group_uuid], map: "idx_role_group_uuid")
+  @@index([tent_id, branch_id], map: "idx_roles_tent_branch")
+  @@index([tent_id], map: "idx_roles_tent_id")
 }
 
 model tbl_sessions {
@@ -310,6 +318,7 @@ model tbl_tent_master1 {
   tent_status              Boolean?                   @default(true)
   created_on               DateTime?                  @default(now()) @db.Timestamp(0)
   modified_on              DateTime?                  @default(now()) @db.Timestamp(0)
+  tbl_branches             tbl_branches[]
   tbl_roles                tbl_roles[]
   tbl_tenant_subscriptions tbl_tenant_subscriptions[]
   tbl_tent_users1          tbl_tent_users1[]
@@ -352,6 +361,7 @@ model tbl_tent_users {
 model tbl_tent_users1 {
   user_id                                         BigInt            @id @default(autoincrement())
   tent_id                                         BigInt?
+  branch_id                                       BigInt?
   user_uuid                                       String            @unique(map: "user_uuid") @db.Char(8)
   user_name                                       String            @db.VarChar(100)
   user_email                                      String?           @unique(map: "user_email") @db.VarChar(150)
@@ -365,10 +375,12 @@ model tbl_tent_users1 {
   tbl_roles_tbl_roles_created_byTotbl_tent_users1 tbl_roles[]       @relation("tbl_roles_created_byTotbl_tent_users1")
   tbl_roles_tbl_roles_deleted_byTotbl_tent_users1 tbl_roles[]       @relation("tbl_roles_deleted_byTotbl_tent_users1")
   tbl_roles_tbl_roles_updated_byTotbl_tent_users1 tbl_roles[]       @relation("tbl_roles_updated_byTotbl_tent_users1")
+  tbl_branches                                    tbl_branches?     @relation(fields: [branch_id], references: [branch_id], onUpdate: Restrict, map: "fk_users_branch")
   tbl_tent_master1                                tbl_tent_master1? @relation(fields: [tent_id], references: [tent_id], onDelete: Cascade, onUpdate: Restrict, map: "tbl_tent_users1_ibfk_1")
   tbl_user_roles                                  tbl_user_roles[]
 
   @@index([tent_id], map: "tent_id")
+  @@index([branch_id], map: "idx_branch_id")
 }
 
 model tbl_user_roles {
@@ -381,6 +393,28 @@ model tbl_user_roles {
 
   @@unique([user_id, role_id], map: "uniq_user_role")
   @@index([role_id], map: "fk_ur_role")
+}
+
+model tbl_branches {
+  branch_id        BigInt            @id @default(autoincrement())
+  branch_uuid      String            @unique(map: "branch_uuid") @db.Char(8)
+  tent_id          BigInt
+  branch_name      String            @db.VarChar(150)
+  is_hq            Boolean?          @default(false)
+  address1         String?           @db.VarChar(255)
+  address2         String?           @db.VarChar(255)
+  country          String?           @db.VarChar(100)
+  state            String?           @db.VarChar(100)
+  postal_code      String?           @db.VarChar(20)
+  phone            String?           @db.VarChar(20)
+  status           Boolean?          @default(true)
+  created_on       DateTime?         @default(now()) @db.Timestamp(0)
+  modified_on      DateTime?         @default(now()) @db.Timestamp(0)
+  tbl_tent_master1 tbl_tent_master1  @relation(fields: [tent_id], references: [tent_id], onDelete: Cascade, onUpdate: Restrict, map: "fk_branches_tenant")
+  tbl_roles        tbl_roles[]
+  tbl_tent_users1  tbl_tent_users1[]
+
+  @@index([tent_id], map: "tent_id")
 }
 
 enum tbl_tent_group_group_status {

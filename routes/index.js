@@ -1,9 +1,12 @@
 import { Router } from "express";
+import prisma from "../config/prismaClient.js";
+import { loadTemplate, sendEmail } from "../utils/nodemailer.js";
+
 import authRoutes from "../modules/auth/auth.route.js";
 import settingsRoutes from "../modules/settings/settings.route.js";
 import controlsRoutes from "../modules/controls/controls.route.js";
-import prisma from "../config/prismaClient.js";
-import { loadTemplate, sendEmail } from "../utils/nodemailer.js";
+import subscriptionRoutes from "../modules/subscriptions/subscription.route.js";
+import branchesRoutes from "../modules/branches/branches.route.js";
 
 const router = Router();
 
@@ -68,5 +71,7 @@ router.post("/welcome", sendWelcomeEmail);
 router.use("/auth", authRoutes);
 router.use("/controls", controlsRoutes);
 router.use("/settings", settingsRoutes);
+router.use("/subscription", subscriptionRoutes);
+router.use("/branches", branchesRoutes);
 
 export default router;

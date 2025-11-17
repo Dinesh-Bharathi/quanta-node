@@ -2,17 +2,36 @@ import { generateShortUUID } from "../../utils/generateUUID.js";
 
 /**
  * Initializes default tenant setup:
- *  - Creates free trial subscription
- *  - Creates roles: Super Admin + Admin
+ *  - Creates HQ branch
+ *  - Applies free trial subscription
+ *  - Creates roles: Super Admin (tenant-wide), Branch Manager (HQ), Admin (HQ)
  *  - Assigns Super Admin role to tenant owner
  *  - Grants Super Admin full menu permissions
  */
 export async function createDefaultSetupForTenant(
   prismaTx,
   tenantId,
+  branchId,
   ownerUserId
 ) {
-  // 1️⃣  Fetch Free Trial plan
+  // 1️⃣ Create HQ branch
+  // const hqBranchUuid = generateShortUUID();
+
+  // const hqBranch = await prismaTx.tbl_branches.create({
+  //   data: {
+  //     branch_uuid: hqBranchUuid,
+  //     tent_id: tenantId,
+  //     branch_name: "Headquarters",
+  //     is_hq: true,
+  //     status: true,
+  //   },
+  //   select: {
+  //     branch_id: true,
+  //     branch_uuid: true,
+  //   },
+  // });
+
+  // 2️⃣ Fetch Free Trial plan
   const freePlan = await prismaTx.tbl_subscription_plans.findFirst({
     where: { plan_name: "Free Trial" },
   });
@@ -21,7 +40,7 @@ export async function createDefaultSetupForTenant(
     throw new Error("Default 'Free Trial' plan not found");
   }
 
-  // 2️⃣  Create tenant subscription
+  // 3️⃣ Create tenant subscription
   const subscriptionUuid = generateShortUUID();
   const startDate = new Date();
   const endDate = new Date();
@@ -40,17 +59,21 @@ export async function createDefaultSetupForTenant(
     },
   });
 
-  // 3️⃣  Create default roles
+  // 4️⃣ Create default roles (Super Admin, Admin, Branch Manager)
   const superAdminUUID = generateShortUUID();
   const adminUUID = generateShortUUID();
+  const branchManagerUUID = generateShortUUID();
 
-  const [superAdmin, admin] = await prismaTx.$transaction([
+  // ❌ prismaTx.$transaction(...)  --> Not supported inside an active tx
+  // ✅ Use Promise.all()
+  const [superAdmin, admin, branchManager] = await Promise.all([
     prismaTx.tbl_roles.create({
       data: {
         role_uuid: superAdminUUID,
         tent_id: tenantId,
+        branch_id: null,
         name: "Super Admin",
-        description: "Full access across system",
+        description: "Full access across the system",
         role_type: "SYSTEM",
         is_active: true,
       },
@@ -59,15 +82,27 @@ export async function createDefaultSetupForTenant(
       data: {
         role_uuid: adminUUID,
         tent_id: tenantId,
+        branch_id: branchId,
         name: "Admin",
-        description: "Access and manages administration",
+        description: "Administration access for HQ branch",
+        role_type: "CUSTOM",
+        is_active: true,
+      },
+    }),
+    prismaTx.tbl_roles.create({
+      data: {
+        role_uuid: branchManagerUUID,
+        tent_id: tenantId,
+        branch_id: branchId,
+        name: "Branch Manager",
+        description: "Manages HQ-level operations",
         role_type: "CUSTOM",
         is_active: true,
       },
     }),
   ]);
 
-  // 4️⃣  Assign Super Admin to owner user
+  // 5️⃣ Assign Super Admin to owner user
   await prismaTx.tbl_user_roles.create({
     data: {
       user_id: ownerUserId,
@@ -75,7 +110,7 @@ export async function createDefaultSetupForTenant(
     },
   });
 
-  // 5️⃣  Grant Super Admin permissions to all menus
+  // 6️⃣ Grant Super Admin full permissions
   const menus = await prismaTx.tbl_menus.findMany({
     select: { menu_id: true },
   });
@@ -93,6 +128,9 @@ export async function createDefaultSetupForTenant(
     });
   }
 
-  // 6️⃣  (Optional) Grant Admin limited permissions later if needed
-  return { superAdmin, admin };
+  return {
+    superAdmin,
+    admin,
+    branchManager,
+  };
 }

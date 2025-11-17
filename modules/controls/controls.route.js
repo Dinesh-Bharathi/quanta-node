@@ -1,8 +1,9 @@
 import { Router } from "express";
 import {
   addTenantRole,
+  assignUserToBranch,
   createTenantUser,
-  deleteRoleByUuid,
+  deleteTenantRole,
   deleteTenantUser,
   getTenantMenus,
   getTenantRoleByUuid,
@@ -10,7 +11,7 @@ import {
   getTenantUsers,
   getTenantUsersByUuid,
   getUserMenus,
-  updateTenantRoleByUuid,
+  updateTenantRole,
   updateTenantUser,
 } from "./controls.controller.js";
 import { verifyToken } from "../../middlewares/authMiddleware.js";
@@ -18,18 +19,23 @@ import { cryptoMiddleware } from "../../middlewares/cryptoMiddleware.js";
 
 const router = Router();
 
-router.get("/menu/:userUuid", verifyToken, cryptoMiddleware, getUserMenus);
 router.get(
-  "/tenant/roles/:tentUuid",
+  "/menu/:userUuid/:branchUuid",
   verifyToken,
   cryptoMiddleware,
-  getTenantRoles
+  getUserMenus
 );
 router.get(
   "/tenant/subscribed/menus/:tentUuid",
   verifyToken,
   cryptoMiddleware,
   getTenantMenus
+);
+router.get(
+  "/tenant/roles/:tentUuid",
+  verifyToken,
+  cryptoMiddleware,
+  getTenantRoles
 );
 router.post(
   "/tenant/roles/:tentUuid",
@@ -47,13 +53,13 @@ router.put(
   "/tenant/role/:roleUuid",
   verifyToken,
   cryptoMiddleware,
-  updateTenantRoleByUuid
+  updateTenantRole
 );
 router.delete(
   "/tenant/role/:roleUuid",
   verifyToken,
   cryptoMiddleware,
-  deleteRoleByUuid
+  deleteTenantRole
 );
 
 router.get("/tenant/users/:tentUuid", getTenantUsers);
@@ -61,4 +67,5 @@ router.post("/tenant/users/:tentUuid", createTenantUser);
 router.put("/tenant/users/:userUuid", updateTenantUser);
 router.delete("/tenant/users/:userUuid", deleteTenantUser);
 router.get("/tenant/user/:userUuid", getTenantUsersByUuid);
+router.put("/tenant/assign-user", assignUserToBranch);
 export default router;

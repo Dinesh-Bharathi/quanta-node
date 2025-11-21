@@ -70,6 +70,7 @@ export async function createDefaultSetupForTenant(
     prismaTx.tbl_roles.create({
       data: {
         role_uuid: superAdminUUID,
+        role_group_uuid: superAdminUUID,
         tent_id: tenantId,
         branch_id: null,
         name: "Super Admin",
@@ -81,6 +82,7 @@ export async function createDefaultSetupForTenant(
     prismaTx.tbl_roles.create({
       data: {
         role_uuid: adminUUID,
+        role_group_uuid: adminUUID,
         tent_id: tenantId,
         branch_id: branchId,
         name: "Admin",
@@ -92,6 +94,7 @@ export async function createDefaultSetupForTenant(
     prismaTx.tbl_roles.create({
       data: {
         role_uuid: branchManagerUUID,
+        role_group_uuid: branchManagerUUID,
         tent_id: tenantId,
         branch_id: branchId,
         name: "Branch Manager",

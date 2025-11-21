@@ -24,7 +24,7 @@ export async function getTenantRolesRepo({
   // If not provided -> include all (tenant-wide + all branch copies)
   let where = {
     tent_id: tenantId,
-    // is_delete: false,
+    is_delete: false,
   };
 
   if (branchUuid) {
@@ -158,6 +158,7 @@ export async function getTenantRoleByUuidRepo(roleUuid) {
 
   return {
     roleName: role.name,
+    role_group_uuid: role.role_group_uuid,
     description: role.description,
     permissions,
   };
@@ -276,6 +277,16 @@ export async function updateTenantRoleRepo({
   scope,
   branch_uuid = [],
 }) {
+  console.log(
+    "object",
+    roleGroupUuid,
+    tentUuid,
+    roleName,
+    description,
+    permissions,
+    scope,
+    branch_uuid
+  );
   // 1) Resolve tenant
   const tenant = await prisma.tbl_tent_master1.findUnique({
     where: { tent_uuid: tentUuid },
@@ -436,18 +447,11 @@ export async function deleteTenantRoleRepo({ roleGroupUuid, tentUuid }) {
 
   // 4️⃣ Delete inside transaction
   return await prisma.$transaction(async (tx) => {
-    // soft delete roles
-    await tx.tbl_roles.updateMany({
-      where: { role_group_uuid: roleGroupUuid },
-      data: {
-        is_delete: true,
-        deleted_at: new Date(),
+    await tx.tbl_roles.deleteMany({
+      where: {
+        role_group_uuid: roleGroupUuid,
+        tent_id: tenant.tent_id,
       },
-    });
-
-    // delete permissions
-    await tx.tbl_role_permissions.deleteMany({
-      where: { role_id: { in: roleIds } },
     });
 
     return { deleted: true };

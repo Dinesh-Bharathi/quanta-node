@@ -138,7 +138,7 @@ export async function registerTenantForUser(userUuid, data) {
       data: {
         branch_uuid,
         tent_id: tenant.tent_id,
-        branch_name: `${tent_name} HQ`,
+        branch_name: `${tent_name}`,
         is_hq: true,
         status: true,
       },

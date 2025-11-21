@@ -123,6 +123,13 @@ export const updateTenantRole = async (req, res, next) => {
     const { tentUuid, roleName, description, permissions, scope, branch_uuid } =
       req.body;
 
+    if (!roleGroupUuid || !tentUuid) {
+      return res.status(400).json({
+        success: false,
+        message: "roleGroupUuid and tentUuid are required",
+      });
+    }
+
     const updated = await updateTenantRoleService({
       roleGroupUuid,
       tentUuid,
@@ -146,8 +153,7 @@ export const updateTenantRole = async (req, res, next) => {
 
 export const deleteTenantRole = async (req, res, next) => {
   try {
-    const { roleGroupUuid } = req.params;
-    const { tentUuid } = req.body;
+    const { tentUuid, roleGroupUuid } = req.params;
 
     if (!roleGroupUuid || !tentUuid) {
       return res.status(400).json({

@@ -79,7 +79,7 @@ export const verifyEmailController = async (req, res) => {
     });
 
     return res.redirect(
-      `${process.env.CLIENT_URL}/signup/organization?user_uuid=${decoded.user_uuid}`
+      `${process.env.CLIENT_URL}/signup/onboarding?user_uuid=${decoded.user_uuid}`
     );
   } catch (error) {
     console.error("Email verification error:", error);

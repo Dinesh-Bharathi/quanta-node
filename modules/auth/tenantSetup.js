@@ -1,119 +1,111 @@
 import { generateShortUUID } from "../../utils/generateUUID.js";
 
 /**
- * Initializes default tenant setup:
- *  - Creates HQ branch
- *  - Applies free trial subscription
- *  - Creates roles: Super Admin (tenant-wide), Branch Manager (HQ), Admin (HQ)
- *  - Assigns Super Admin role to tenant owner
- *  - Grants Super Admin full menu permissions
+ * Creates default setup for a new tenant:
+ * 1. Applies free trial subscription
+ * 2. Creates default roles (Super Admin, Admin, Manager)
+ * 3. Assigns Super Admin role to owner with tenant-wide access
+ * 4. Grants Super Admin full permissions
  */
 export async function createDefaultSetupForTenant(
   prismaTx,
   tenantId,
-  branchId,
-  ownerUserId
+  ownerUserId,
+  planUuid = null
 ) {
-  // 1️⃣ Create HQ branch
-  // const hqBranchUuid = generateShortUUID();
+  // 1️⃣ Create/Fetch subscription plan
+  let plan;
 
-  // const hqBranch = await prismaTx.tbl_branches.create({
-  //   data: {
-  //     branch_uuid: hqBranchUuid,
-  //     tent_id: tenantId,
-  //     branch_name: "Headquarters",
-  //     is_hq: true,
-  //     status: true,
-  //   },
-  //   select: {
-  //     branch_id: true,
-  //     branch_uuid: true,
-  //   },
-  // });
-
-  // 2️⃣ Fetch Free Trial plan
-  const freePlan = await prismaTx.tbl_subscription_plans.findFirst({
-    where: { plan_name: "Free Trial" },
-  });
-
-  if (!freePlan) {
-    throw new Error("Default 'Free Trial' plan not found");
+  if (planUuid) {
+    plan = await prismaTx.tbl_subscription_plans.findUnique({
+      where: { plan_uuid: planUuid },
+    });
+    if (!plan) {
+      throw new Error("Invalid subscription plan selected");
+    }
+  } else {
+    plan = await prismaTx.tbl_subscription_plans.findFirst({
+      where: { plan_name: "Free Trial" },
+    });
+    if (!plan) {
+      throw new Error("Default 'Free Trial' plan not found in system");
+    }
   }
 
-  // 3️⃣ Create tenant subscription
+  // 2️⃣ Create tenant subscription
   const subscriptionUuid = generateShortUUID();
   const startDate = new Date();
   const endDate = new Date();
-  endDate.setDate(endDate.getDate() + (freePlan.duration_days || 30));
+  endDate.setDate(endDate.getDate() + (plan.duration_days || 30));
 
   await prismaTx.tbl_tenant_subscriptions.create({
     data: {
       subscription_uuid: subscriptionUuid,
       tent_id: tenantId,
-      plan_id: freePlan.plan_id,
+      plan_id: plan.plan_id,
       start_date: startDate,
       end_date: endDate,
       is_active: true,
       is_auto_renew: false,
-      payment_status: "FREE",
+      payment_status: plan.price > 0 ? "PENDING" : "FREE",
     },
   });
 
-  // 4️⃣ Create default roles (Super Admin, Admin, Branch Manager)
+  // 3️⃣ Create default roles
   const superAdminUUID = generateShortUUID();
   const adminUUID = generateShortUUID();
-  const branchManagerUUID = generateShortUUID();
+  const managerUUID = generateShortUUID();
 
-  // ❌ prismaTx.$transaction(...)  --> Not supported inside an active tx
-  // ✅ Use Promise.all()
-  const [superAdmin, admin, branchManager] = await Promise.all([
+  const [superAdmin, admin, manager] = await Promise.all([
+    // Super Admin - Full system access
     prismaTx.tbl_roles.create({
       data: {
         role_uuid: superAdminUUID,
-        role_group_uuid: superAdminUUID,
         tent_id: tenantId,
-        branch_id: null,
-        name: "Super Admin",
-        description: "Full access across the system",
+        role_name: "Super Admin", // ✅ Changed from 'name' to 'role_name'
+        description: "Full access across all branches",
         role_type: "SYSTEM",
         is_active: true,
+        created_by: ownerUserId,
       },
     }),
+    // Admin - Standard admin role
     prismaTx.tbl_roles.create({
       data: {
         role_uuid: adminUUID,
-        role_group_uuid: adminUUID,
         tent_id: tenantId,
-        branch_id: branchId,
-        name: "Admin",
-        description: "Administration access for HQ branch",
+        role_name: "Admin", // ✅ Changed from 'name' to 'role_name'
+        description: "Administrative access with limited permissions",
         role_type: "CUSTOM",
         is_active: true,
+        created_by: ownerUserId,
       },
     }),
+    // Manager - Basic management role
     prismaTx.tbl_roles.create({
       data: {
-        role_uuid: branchManagerUUID,
-        role_group_uuid: branchManagerUUID,
+        role_uuid: managerUUID,
         tent_id: tenantId,
-        branch_id: branchId,
-        name: "Branch Manager",
-        description: "Manages HQ-level operations",
+        role_name: "Manager", // ✅ Changed from 'name' to 'role_name'
+        description: "Branch-level management access",
         role_type: "CUSTOM",
         is_active: true,
+        created_by: ownerUserId,
       },
     }),
   ]);
 
-  // 5️⃣ Assign Super Admin to owner user
+  // 4️⃣ Assign Super Admin role to owner (tenant-wide access)
   await prismaTx.tbl_user_roles.create({
     data: {
       user_id: ownerUserId,
       role_id: superAdmin.role_id,
+      branch_id: null, // NULL = tenant-wide access
+      assigned_by: ownerUserId,
     },
   });
 
-  // 6️⃣ Grant Super Admin full permissions
+  // 5️⃣ Grant Super Admin full permissions on all menus
   const menus = await prismaTx.tbl_menus.findMany({
     select: { menu_id: true },
   });
@@ -128,12 +120,49 @@ export async function createDefaultSetupForTenant(
         can_update: true,
         can_delete: true,
       })),
+      skipDuplicates: true,
+    });
+  }
+
+  // 6️⃣ Grant Admin moderate permissions
+  if (menus.length > 0) {
+    await prismaTx.tbl_role_permissions.createMany({
+      data: menus.map((m) => ({
+        role_id: admin.role_id,
+        menu_id: m.menu_id,
+        can_read: true,
+        can_add: true,
+        can_update: true,
+        can_delete: false,
+      })),
+      skipDuplicates: true,
+    });
+  }
+
+  // 7️⃣ Grant Manager basic permissions
+  if (menus.length > 0) {
+    await prismaTx.tbl_role_permissions.createMany({
+      data: menus.map((m) => ({
+        role_id: manager.role_id,
+        menu_id: m.menu_id,
+        can_read: true,
+        can_add: true,
+        can_update: false,
+        can_delete: false,
+      })),
+      skipDuplicates: true,
     });
   }
 
   return {
-    superAdmin,
-    admin,
-    branchManager,
+    subscription: {
+      subscription_uuid: subscriptionUuid,
+      plan_name: plan.plan_name,
+    },
+    roles: {
+      superAdmin: { role_uuid: superAdminUUID, role_name: "Super Admin" },
+      admin: { role_uuid: adminUUID, role_name: "Admin" },
+      manager: { role_uuid: managerUUID, role_name: "Manager" },
+    },
   };
 }

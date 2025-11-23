@@ -3,136 +3,55 @@ import { generateShortUUID } from "../../utils/generateUUID.js";
 import { hashPassword } from "../../utils/hashPassword.js";
 import { sanitizeResponse } from "../../utils/sanitizeResponse.js";
 
-/** ------------------ ROLES ------------------- **/
+/** ------------------ ROLE MANAGEMENT ------------------- **/
 
-export async function getTenantRolesRepo({
-  tentUuid,
-  branchUuid = null,
-  scope = null,
-}) {
-  // 1) Get tenant id
+/**
+ * Get all roles for a tenant
+ */
+export async function getTenantRolesRepo({ tentUuid }) {
   const tenant = await prisma.tbl_tent_master1.findUnique({
     where: { tent_uuid: tentUuid },
     select: { tent_id: true },
   });
   if (!tenant) throw new Error("Tenant not found");
 
-  const tenantId = tenant.tent_id;
-
-  // 2) Build where clause:
-  // If branchUuid provided -> include tenant-wide (branch_id IS NULL) and roles for that branch only.
-  // If not provided -> include all (tenant-wide + all branch copies)
-  let where = {
-    tent_id: tenantId,
-    is_delete: false,
-  };
-
-  if (branchUuid) {
-    // resolve branch id
-    const br = await prisma.tbl_branches.findUnique({
-      where: { branch_uuid: branchUuid },
-      select: { branch_id: true, tent_id: true },
-    });
-    if (!br || br.tent_id !== tenantId) throw new Error("Invalid branchUuid");
-
-    const branchId = br.branch_id;
-
-    // role rows to include:
-    //  - tenant-wide: branch_id === null
-    //  - branch-specific: branch_id === this branch
-    where = {
-      ...where,
-      OR: [{ branch_id: null }, { branch_id: branchId }],
-    };
-  }
-
-  // 3) Fetch matching rows
   const roles = await prisma.tbl_roles.findMany({
-    where,
+    where: { tent_id: tenant.tent_id },
     include: {
-      tbl_branches: {
-        select: { branch_uuid: true, branch_name: true },
-      },
       tbl_tent_users1_tbl_roles_created_byTotbl_tent_users1: {
         select: { user_name: true },
       },
       tbl_tent_users1_tbl_roles_updated_byTotbl_tent_users1: {
         select: { user_name: true },
       },
+      _count: {
+        select: { tbl_user_roles: true }, // Count assigned users
+      },
     },
-    orderBy: { created_at: "asc" },
+    orderBy: { created_at: "desc" },
   });
 
-  if (roles.length === 0) return [];
-
-  // 4) Group by role_group_uuid (fallback to role_uuid for legacy)
-  const grouped = {};
-
-  for (const r of roles) {
-    const groupKey = r.role_group_uuid || r.role_uuid;
-
-    if (!grouped[groupKey]) {
-      grouped[groupKey] = {
-        role_group_uuid: groupKey,
-        role_uuid: r.role_uuid, // the first row's role_uuid (for UI selection)
-        role_name: r.name,
-        description: r.description,
-        role_type: r.role_type,
-        is_active: r.is_active,
-        branches: [],
-        created_user:
-          r.tbl_tent_users1_tbl_roles_created_byTotbl_tent_users1?.user_name ||
-          null,
-        updated_user:
-          r.tbl_tent_users1_tbl_roles_updated_byTotbl_tent_users1?.user_name ||
-          null,
-        created_at: r.created_at,
-        updated_at: r.updated_at,
-      };
-    }
-
-    // Branch assignment: null = tenant-wide
-    if (r.branch_id === null) {
-      grouped[groupKey].branches = []; // tenant-wide covers all branches
-    } else if (r.tbl_branches) {
-      // push branch if not already present
-      const exists = grouped[groupKey].branches.some(
-        (b) => b.branch_uuid === r.tbl_branches.branch_uuid
-      );
-      if (!exists) {
-        grouped[groupKey].branches.push({
-          branch_uuid: r.tbl_branches.branch_uuid,
-          branch_name: r.tbl_branches.branch_name,
-        });
-      }
-    }
-  }
-
-  // 5) Determine scope
-  const result = Object.values(grouped).map((role) => {
-    let deducedScope = "tenant"; // default
-
-    if (role.branches.length === 0) {
-      // either tenant-wide OR no branch rows (but we treat as tenant-wide)
-      deducedScope = "tenant";
-    } else if (role.branches.length === 1) {
-      deducedScope = "branch";
-    } else if (role.branches.length > 1) {
-      deducedScope = "multi-branch";
-    }
-
-    // If caller requested a branchUuid filter we want to present scope relative to that branch:
-    // e.g., if branchUuid provided and role.branches contains that branchUuid -> present as branch/multi-branch,
-    // tenant-wide still shows as 'tenant'.
-    return {
-      ...role,
-      scope: deducedScope,
-    };
-  });
-
-  return result;
+  return roles.map((role) => ({
+    role_uuid: role.role_uuid,
+    role_name: role.role_name,
+    description: role.description,
+    role_type: role.role_type,
+    is_active: role.is_active,
+    assigned_users_count: role._count.tbl_user_roles,
+    created_by:
+      role.tbl_tent_users1_tbl_roles_created_byTotbl_tent_users1?.user_name ||
+      null,
+    updated_by:
+      role.tbl_tent_users1_tbl_roles_updated_byTotbl_tent_users1?.user_name ||
+      null,
+    created_at: role.created_at,
+    updated_at: role.updated_at,
+  }));
 }
 
+/**
+ * Get single role by UUID with permissions
+ */
 export async function getTenantRoleByUuidRepo(roleUuid) {
   const role = await prisma.tbl_roles.findUnique({
     where: { role_uuid: roleUuid },
@@ -157,88 +76,64 @@ export async function getTenantRoleByUuidRepo(roleUuid) {
   }
 
   return {
-    roleName: role.name,
-    role_group_uuid: role.role_group_uuid,
+    role_uuid: role.role_uuid,
+    roleName: role.role_name,
     description: role.description,
+    role_type: role.role_type,
+    is_active: role.is_active,
     permissions,
   };
 }
 
+/**
+ * Create a new role
+ */
 export async function createTenantRoleRepo({
   tentUuid,
   roleName,
   description,
   permissions,
-  scope = "tenant",
-  branch_uuid = null,
+  createdBy = null,
 }) {
-  // 1) Validate tenant
+  // 1️⃣ Validate tenant
   const tenant = await prisma.tbl_tent_master1.findUnique({
     where: { tent_uuid: tentUuid },
     select: { tent_id: true },
   });
-  if (!tenant) throw new Error("Invalid tenant UUID");
-  const tenantId = tenant.tent_id;
+  if (!tenant) throw new Error("Tenant not found");
 
-  // 2) Resolve branches
-  let branches = [];
-
-  if (scope === "tenant") {
-    branches = [{ branch_id: null, branch_uuid: null }];
-  } else if (scope === "branch") {
-    if (!branch_uuid) throw new Error("branchUuid required for branch scope");
-    const br = await prisma.tbl_branches.findUnique({
-      where: { branch_uuid: branch_uuid?.[0] },
-      select: { branch_id: true, tent_id: true, branch_uuid: true },
-    });
-    if (!br || br.tent_id !== tenantId) throw new Error("Invalid branchUuid");
-    branches = [br];
-  } else if (scope === "multi-branch") {
-    if (!Array.isArray(branch_uuid) || branch_uuid.length === 0)
-      throw new Error("branchUuid[] required for multi-branch role");
-
-    const brList = await prisma.tbl_branches.findMany({
-      where: {
-        tent_id: tenantId,
-        branch_uuid: { in: branch_uuid },
-      },
-      select: { branch_id: true, branch_uuid: true },
-    });
-
-    if (brList.length !== branch_uuid.length)
-      throw new Error("One or more branchUuids invalid");
-
-    branches = brList;
-  } else {
-    throw new Error("Invalid scope. Must be tenant | branch | multi-branch");
+  // 2️⃣ Check if role name already exists
+  const existingRole = await prisma.tbl_roles.findFirst({
+    where: {
+      tent_id: tenant.tent_id,
+      role_name: roleName,
+    },
+  });
+  if (existingRole) {
+    throw new Error(`Role "${roleName}" already exists for this tenant`);
   }
 
-  // 3) Prepare menu map (permission mapping)
+  // 3️⃣ Prepare menu mapping
   const allMenus = await prisma.tbl_menus.findMany();
   const menuMap = Object.fromEntries(allMenus.map((m) => [m.path, m.menu_id]));
 
-  // 4) create a single role_group_uuid shared by all copies
-  const roleGroupUuid = generateShortUUID();
+  const role_uuid = generateShortUUID();
 
-  const createdRoles = [];
-
-  // 5) Create rows (one per branch or single tenant-wide)
-  for (const br of branches) {
-    const roleUuid = generateShortUUID();
-
-    const role = await prisma.tbl_roles.create({
+  // 4️⃣ Create role and permissions in transaction
+  return await prisma.$transaction(async (tx) => {
+    const role = await tx.tbl_roles.create({
       data: {
-        role_uuid: roleUuid,
-        role_group_uuid: roleGroupUuid,
-        name: roleName,
+        role_uuid,
+        tent_id: tenant.tent_id,
+        role_name: roleName,
         description,
-        tent_id: tenantId,
-        branch_id: br.branch_id,
         role_type: "CUSTOM",
+        is_active: true,
+        created_by: createdBy,
       },
     });
 
-    // Build permission rows same as before
+    // Create permissions
     const rolePermissions = Object.entries(permissions)
       .filter(([path]) => menuMap[path])
       .map(([path, perm]) => ({
@@ -251,167 +146,158 @@ export async function createTenantRoleRepo({
       }));
 
     if (rolePermissions.length) {
-      await prisma.tbl_role_permissions.createMany({ data: rolePermissions });
+      await tx.tbl_role_permissions.createMany({
+        data: rolePermissions,
+      });
     }
 
-    createdRoles.push({
-      role_uuid: roleUuid,
-      role_group_uuid: roleGroupUuid,
-      scope,
-      branch_uuid: br.branch_uuid ?? null,
-    });
-  }
-
-  return sanitizeResponse({
-    count: createdRoles.length,
-    roles: createdRoles,
+    return {
+      role_uuid,
+      role_name: roleName,
+      description,
+    };
   });
 }
 
+/**
+ * Update an existing role
+ */
 export async function updateTenantRoleRepo({
-  roleGroupUuid, // IMPORTANT: caller must pass the role group uuid
+  roleUuid,
   tentUuid,
   roleName,
   description,
   permissions,
-  scope,
-  branch_uuid = [],
+  updatedBy = null,
 }) {
-  console.log(
-    "object",
-    roleGroupUuid,
-    tentUuid,
-    roleName,
-    description,
-    permissions,
-    scope,
-    branch_uuid
-  );
-  // 1) Resolve tenant
+  // 1️⃣ Validate tenant
   const tenant = await prisma.tbl_tent_master1.findUnique({
     where: { tent_uuid: tentUuid },
     select: { tent_id: true },
   });
   if (!tenant) throw new Error("Tenant not found");
-  const tenantId = tenant.tent_id;
 
-  // 2) Fetch existing role copies of this group (ensure they belong to tenant)
-  const existingRoles = await prisma.tbl_roles.findMany({
+  // 2️⃣ Find role
+  const role = await prisma.tbl_roles.findFirst({
     where: {
-      role_group_uuid: roleGroupUuid,
-      tent_id: tenantId,
-      is_delete: false,
-    },
-    include: {
-      tbl_branches: { select: { branch_uuid: true, branch_id: true } },
+      role_uuid: roleUuid,
+      tent_id: tenant.tent_id,
     },
   });
-  if (existingRoles.length === 0) throw new Error("Role group not found");
+  if (!role) throw new Error("Role not found");
 
-  // 3) Validate incoming scope + branches (similar to create)
-  let validBranches = [];
-
-  if (scope === "tenant") {
-    validBranches = [{ branch_id: null, branch_uuid: null }];
-  } else if (scope === "branch") {
-    if (!Array.isArray(branch_uuid) || branch_uuid.length !== 1)
-      throw new Error(
-        "Exactly one branchUuid must be provided for branch scope"
-      );
-    const br = await prisma.tbl_branches.findFirst({
-      where: { branch_uuid: branch_uuid[0], tent_id: tenantId },
-      select: { branch_id: true, branch_uuid: true },
+  // 3️⃣ Check if new name conflicts with another role
+  if (roleName !== role.role_name) {
+    const existingRole = await prisma.tbl_roles.findFirst({
+      where: {
+        tent_id: tenant.tent_id,
+        role_name: roleName,
+        NOT: { role_id: role.role_id },
+      },
     });
-    if (!br) throw new Error("Invalid branchUuid");
-    validBranches = [br];
-  } else if (scope === "multi-branch") {
-    if (!Array.isArray(branch_uuid) || branch_uuid.length === 0)
-      throw new Error("branchUuids[] required for multi-branch");
-    const brList = await prisma.tbl_branches.findMany({
-      where: { branch_uuid: { in: branch_uuid }, tent_id: tenantId },
-      select: { branch_id: true, branch_uuid: true },
-    });
-    if (brList.length !== branch_uuid.length)
-      throw new Error("One or more branchUuid values invalid");
-    validBranches = brList;
-  } else {
-    throw new Error("Invalid scope");
+    if (existingRole) {
+      throw new Error(`Role "${roleName}" already exists for this tenant`);
+    }
   }
 
-  // 4) Prepare normalized permissions
+  // 4️⃣ Prepare menu mapping
   const allMenus = await prisma.tbl_menus.findMany();
   const menuMap = Object.fromEntries(allMenus.map((m) => [m.path, m.menu_id]));
-  const normalizedPermissions = Object.entries(permissions)
-    .filter(([path]) => menuMap[path])
-    .map(([path, perm]) => ({
-      menu_id: menuMap[path],
-      can_read: perm.read || false,
-      can_add: perm.add || false,
-      can_update: perm.update || false,
-      can_delete: perm.delete || false,
-    }));
 
-  // 5) Transaction: soft-delete old copies -> create new copies -> insert permissions
+  // 5️⃣ Update role and permissions in transaction
   return await prisma.$transaction(async (tx) => {
-    // 5.A Soft-delete existing role rows for this role group
-    await tx.tbl_roles.updateMany({
-      where: { role_group_uuid: roleGroupUuid },
-      data: { is_delete: true },
+    // Update role details
+    await tx.tbl_roles.update({
+      where: { role_id: role.role_id },
+      data: {
+        role_name: roleName,
+        description,
+        updated_by: updatedBy,
+        updated_at: new Date(),
+      },
     });
 
-    // 5.B create a new role_group_uuid for this new set
-    const newRoleGroupUuid = generateShortUUID();
+    // Delete old permissions
+    await tx.tbl_role_permissions.deleteMany({
+      where: { role_id: role.role_id },
+    });
 
-    const newRoleUuids = [];
+    // Create new permissions
+    const rolePermissions = Object.entries(permissions)
+      .filter(([path]) => menuMap[path])
+      .map(([path, perm]) => ({
+        role_id: role.role_id,
+        menu_id: menuMap[path],
+        can_read: perm.read || false,
+        can_add: perm.add || false,
+        can_update: perm.update || false,
+        can_delete: perm.delete || false,
+      }));
 
-    for (const br of validBranches) {
-      const newRoleUuid = generateShortUUID();
-
-      const newRole = await tx.tbl_roles.create({
-        data: {
-          role_uuid: newRoleUuid,
-          role_group_uuid: newRoleGroupUuid,
-          name: roleName,
-          description,
-          tent_id: tenantId,
-          branch_id: br.branch_id,
-          role_type: "CUSTOM",
-          is_active: true,
-          is_delete: false,
-        },
-      });
-
-      // Insert permissions (use normalizedPermissions)
-      if (normalizedPermissions.length) {
-        await tx.tbl_role_permissions.createMany({
-          data: normalizedPermissions.map((perm) => ({
-            role_id: newRole.role_id,
-            menu_id: perm.menu_id,
-            can_read: perm.can_read,
-            can_add: perm.can_add,
-            can_update: perm.can_update,
-            can_delete: perm.can_delete,
-          })),
-        });
-      }
-
-      newRoleUuids.push({
-        role_uuid: newRoleUuid,
-        branch_uuid: br.branch_uuid,
+    if (rolePermissions.length) {
+      await tx.tbl_role_permissions.createMany({
+        data: rolePermissions,
       });
     }
 
     return {
+      role_uuid: roleUuid,
       role_name: roleName,
       description,
-      scope,
-      roles: newRoleUuids,
-      role_group_uuid: newRoleGroupUuid,
     };
   });
 }
 
-export async function deleteTenantRoleRepo({ roleGroupUuid, tentUuid }) {
+/**
+ * Delete a role
+ */
+export async function deleteTenantRoleRepo({ roleUuid, tentUuid }) {
+  // 1️⃣ Validate tenant
+  const tenant = await prisma.tbl_tent_master1.findUnique({
+    where: { tent_uuid: tentUuid },
+    select: { tent_id: true },
+  });
+  if (!tenant) throw new Error("Tenant not found");
+
+  // 2️⃣ Find role
+  const role = await prisma.tbl_roles.findFirst({
+    where: {
+      role_uuid: roleUuid,
+      tent_id: tenant.tent_id,
+    },
+    select: { role_id: true, role_name: true },
+  });
+  if (!role) throw new Error("Role not found");
+
+  // 3️⃣ Check if role is assigned to any users
+  const assignedUsers = await prisma.tbl_user_roles.findMany({
+    where: { role_id: role.role_id },
+    select: { user_id: true },
+  });
+
+  if (assignedUsers.length > 0) {
+    throw new Error(
+      `Cannot delete role "${role.role_name}". It is assigned to ${assignedUsers.length} user(s). Please remove all assignments first.`
+    );
+  }
+
+  // 4️⃣ Delete role (permissions cascade automatically)
+  await prisma.tbl_roles.delete({
+    where: { role_id: role.role_id },
+  });
+
+  return { deleted: true, role_name: role.role_name };
+}
+
+/** ------------------ USER MANAGEMENT ------------------- **/
+
+/**
+ * Get all users in a tenant with their role assignments
+ */
+export async function getTenantUsersRepo(
+  tentUuid,
+  { all = false, branchUuid = null }
+) {
   // 1️⃣ Resolve tenant
   const tenant = await prisma.tbl_tent_master1.findUnique({
     where: { tent_uuid: tentUuid },
@@ -420,82 +306,47 @@ export async function deleteTenantRoleRepo({ roleGroupUuid, tentUuid }) {
 
   if (!tenant) throw new Error("Tenant not found");
 
-  // 2️⃣ Fetch all role copies
-  const roles = await prisma.tbl_roles.findMany({
-    where: {
-      role_group_uuid: roleGroupUuid,
-      tent_id: tenant.tent_id,
-      is_delete: false,
-    },
-    select: { role_id: true },
-  });
-
-  if (roles.length === 0) throw new Error("Role group not found");
-
-  const roleIds = roles.map((r) => r.role_id);
-
-  // 3️⃣ Prevent deletion if any user is assigned
-  const assignedUsers = await prisma.tbl_user_roles.findMany({
-    where: { role_id: { in: roleIds } },
-    select: { user_id: true },
-  });
-
-  if (assignedUsers.length > 0)
-    throw new Error(
-      "Role cannot be deleted. One or more users are assigned to this role."
-    );
-
-  // 4️⃣ Delete inside transaction
-  return await prisma.$transaction(async (tx) => {
-    await tx.tbl_roles.deleteMany({
-      where: {
-        role_group_uuid: roleGroupUuid,
-        tent_id: tenant.tent_id,
-      },
-    });
-
-    return { deleted: true };
-  });
-}
-
-/** ------------------ USER MANAGEMENT ------------------- **/
-
-/**
- * Get all users in a tenant
- */
-export async function getTenantUsersRepo(
-  tentUuid,
-  { all = false, branchUuid = null }
-) {
-  // Step 1: resolve tenant
-  const tenant = await prisma.tbl_tent_master1.findUnique({
-    where: { tent_uuid: tentUuid },
-    select: { tent_id: true },
-  });
-
-  if (!tenant) throw new Error("Tenant not found");
-
-  // Step 2: construct where condition
+  // 2️⃣ Construct where condition
   let where = { tent_id: tenant.tent_id };
 
   if (!all && branchUuid) {
-    // filter by specific branch
-    where.branch_id = {
-      equals: await getBranchIdFromUuid(branchUuid, tenant.tent_id),
+    const branch = await prisma.tbl_branches.findFirst({
+      where: { branch_uuid: branchUuid, tent_id: tenant.tent_id },
+      select: { branch_id: true },
+    });
+    if (!branch) throw new Error("Branch not found");
+
+    // ✅ Filter users who have roles assigned to this branch
+    where.tbl_user_roles = {
+      some: {
+        OR: [
+          { branch_id: branch.branch_id }, // Branch-specific assignment
+          { branch_id: null }, // Tenant-wide assignment
+        ],
+      },
     };
   }
 
-  // Step 3: fetch users
+  // 3️⃣ Fetch users with role assignments
   const users = await prisma.tbl_tent_users1.findMany({
     where,
     include: {
-      tbl_user_roles: { include: { tbl_roles: true } },
-      tbl_branches: { select: { branch_uuid: true, branch_name: true } },
+      tbl_user_roles: {
+        include: {
+          tbl_roles: true,
+          tbl_branches: {
+            select: {
+              branch_uuid: true,
+              branch_name: true,
+            },
+          },
+        },
+      },
     },
-    orderBy: { created_on: "asc" },
+    orderBy: { created_on: "desc" },
   });
 
-  // Step 4: build response
+  // 4️⃣ Build response with all roles
   return users.map((u) => ({
     user_uuid: u.user_uuid,
     user_name: u.user_name,
@@ -505,21 +356,147 @@ export async function getTenantUsersRepo(
     is_owner: u.is_owner,
     created_on: u.created_on,
     modified_on: u.modified_on,
-    branch_uuid: u.tbl_branches?.branch_uuid ?? null,
-    branch_name: u.tbl_branches?.branch_name ?? null,
-    role_uuid: u.tbl_user_roles[0]?.tbl_roles?.role_uuid ?? null,
-    role_name: u.tbl_user_roles[0]?.tbl_roles?.name ?? null,
+    roles: u.tbl_user_roles.map((ur) => ({
+      role_uuid: ur.tbl_roles.role_uuid,
+      role_name: ur.tbl_roles.role_name,
+      role_type: ur.tbl_roles.role_type,
+      // ✅ Branch info from assignment (not from role)
+      branch: ur.tbl_branches
+        ? {
+            branch_uuid: ur.tbl_branches.branch_uuid,
+            branch_name: ur.tbl_branches.branch_name,
+          }
+        : null,
+      // ✅ Scope determined by assignment.branch_id
+      scope: ur.branch_id === null ? "tenant" : "branch",
+    })),
   }));
 }
 
-// Helper: resolve branch uuid → branch id OR error
-async function getBranchIdFromUuid(branchUuid, tenantId) {
-  const branch = await prisma.tbl_branches.findFirst({
-    where: { branch_uuid: branchUuid, tent_id: tenantId },
-    select: { branch_id: true },
+/**
+ * Validate role assignments structure and basic rules
+ */
+async function validateRoleAssignments(roleAssignments, tenantId) {
+  if (!Array.isArray(roleAssignments)) {
+    throw new Error("role_assignments must be an array");
+  }
+
+  if (roleAssignments.length === 0) {
+    throw new Error("At least one role must be assigned");
+  }
+
+  // ✅ Check for duplicate role_uuid + branch_uuid combinations
+  const seen = new Set();
+  for (const assignment of roleAssignments) {
+    const { role_uuid, branch_uuid } = assignment;
+
+    if (!role_uuid) {
+      throw new Error("role_uuid is required for each assignment");
+    }
+
+    const key = `${role_uuid}:${branch_uuid || "tenant"}`;
+    if (seen.has(key)) {
+      throw new Error(
+        `Duplicate role assignment detected: ${role_uuid} for ${
+          branch_uuid || "tenant-wide"
+        }`
+      );
+    }
+    seen.add(key);
+  }
+
+  // Check if mixing tenant-wide and branch-specific roles
+  const hasTenantWide = roleAssignments.some((r) => !r.branch_uuid);
+  const hasBranchSpecific = roleAssignments.some((r) => r.branch_uuid);
+
+  if (hasTenantWide && hasBranchSpecific) {
+    throw new Error(
+      "Cannot mix tenant-wide roles with branch-specific roles. User must have either tenant-wide access OR branch-specific access."
+    );
+  }
+
+  // Validate all branch_uuids exist and belong to tenant
+  const branchUuids = roleAssignments
+    .filter((r) => r.branch_uuid)
+    .map((r) => r.branch_uuid);
+
+  if (branchUuids.length > 0) {
+    const branches = await prisma.tbl_branches.findMany({
+      where: {
+        branch_uuid: { in: branchUuids },
+        tent_id: tenantId,
+      },
+      select: { branch_uuid: true, branch_id: true },
+    });
+
+    if (branches.length !== branchUuids.length) {
+      const foundUuids = branches.map((b) => b.branch_uuid);
+      const missing = branchUuids.filter((uuid) => !foundUuids.includes(uuid));
+      throw new Error(`Invalid branch(es): ${missing.join(", ")}`);
+    }
+  }
+
+  // ✅ Validate all role_uuids exist and belong to tenant
+  const roleUuids = roleAssignments.map((r) => r.role_uuid);
+
+  const roles = await prisma.tbl_roles.findMany({
+    where: {
+      role_uuid: { in: roleUuids },
+      tent_id: tenantId,
+      is_active: true,
+    },
+    select: { role_uuid: true, role_name: true },
   });
-  if (!branch) throw new Error("Branch not found");
-  return branch.branch_id;
+
+  if (roles.length !== roleUuids.length) {
+    const foundUuids = roles.map((r) => r.role_uuid);
+    const missing = roleUuids.filter((uuid) => !foundUuids.includes(uuid));
+    throw new Error(`Invalid role(s): ${missing.join(", ")}`);
+  }
+}
+
+/**
+ * Validate no branch has multiple role assignments
+ */
+function validateBranchConflicts(assignmentDetails) {
+  const branchRoleMap = new Map();
+
+  for (const detail of assignmentDetails) {
+    const branchKey =
+      detail.branch_id === null ? "TENANT_WIDE" : detail.branch_id;
+
+    if (!branchRoleMap.has(branchKey)) {
+      branchRoleMap.set(branchKey, []);
+    }
+
+    branchRoleMap.get(branchKey).push({
+      role_name: detail.role_name,
+      branch_uuid: detail.branch_uuid,
+    });
+  }
+
+  // Check if any branch has more than one role
+  for (const [branchKey, roles] of branchRoleMap.entries()) {
+    if (roles.length > 1) {
+      const branchName =
+        branchKey === "TENANT_WIDE" ? "tenant-wide" : roles[0].branch_uuid;
+      const roleNames = roles.map((r) => r.role_name).join(", ");
+
+      throw new Error(
+        `Branch conflict: Cannot assign multiple roles to the same branch. ` +
+          `Branch "${branchName}" has roles: ${roleNames}. ` +
+          `Please assign only one role per branch.`
+      );
+    }
+  }
+
+  // If tenant-wide role exists, there should only be one assignment
+  if (branchRoleMap.has("TENANT_WIDE") && assignmentDetails.length > 1) {
+    throw new Error(
+      "Tenant-wide role detected. Cannot combine with other role assignments. " +
+        "Tenant-wide roles provide access to all branches."
+    );
+  }
 }
 
 export async function createTenantUserRepo({
@@ -529,7 +506,7 @@ export async function createTenantUserRepo({
   user_country_code = null,
   user_phone = null,
   password,
-  role_uuid = null,
+  role_assignments = [],
   is_owner = false,
 }) {
   // 1️⃣ Validate tenant
@@ -539,59 +516,130 @@ export async function createTenantUserRepo({
   });
   if (!tenant) throw new Error("Tenant not found");
 
-  // 2️⃣ Check email uniqueness inside tenant
+  // 2️⃣ Check email uniqueness
   const existing = await prisma.tbl_tent_users1.findFirst({
     where: { user_email, tent_id: tenant.tent_id },
   });
   if (existing) throw new Error("Email already exists for this tenant");
 
-  // 3️⃣ Resolve role if provided
-  let role = null;
+  // 3️⃣ Validate role assignments
+  await validateRoleAssignments(role_assignments, tenant.tent_id);
 
-  if (role_uuid) {
-    role = await prisma.tbl_roles.findUnique({
-      where: { role_uuid },
-      select: { role_id: true, tent_id: true },
+  // 4️⃣ Resolve role assignments with branch context
+  const assignmentData = [];
+  const assignmentDetails = [];
+
+  for (const assignment of role_assignments) {
+    const { role_uuid, branch_uuid } = assignment;
+
+    // Get role
+    const role = await prisma.tbl_roles.findFirst({
+      where: {
+        role_uuid,
+        tent_id: tenant.tent_id,
+        is_active: true,
+      },
+      select: { role_id: true, role_name: true },
     });
 
-    if (!role) throw new Error("Role not found");
-    if (role.tent_id !== tenant.tent_id)
-      throw new Error("Role does not belong to tenant");
+    if (!role) {
+      throw new Error(`Role not found: ${role_uuid}`);
+    }
+
+    // Get branch if specified
+    let branchId = null;
+    if (branch_uuid) {
+      const branch = await prisma.tbl_branches.findFirst({
+        where: { branch_uuid, tent_id: tenant.tent_id },
+        select: { branch_id: true },
+      });
+
+      if (!branch) {
+        throw new Error(`Invalid branch: ${branch_uuid}`);
+      }
+
+      branchId = branch.branch_id;
+    }
+
+    assignmentData.push({
+      role_id: role.role_id,
+      branch_id: branchId,
+    });
+
+    assignmentDetails.push({
+      role_id: role.role_id,
+      role_name: role.role_name,
+      branch_id: branchId,
+      branch_uuid: branch_uuid || null,
+    });
   }
 
-  // 4️⃣ Create user (no branch)
+  // 5️⃣ Validate branch conflicts
+  validateBranchConflicts(assignmentDetails);
+
+  // 6️⃣ Create user with role assignments
   const hashed = await hashPassword(password);
   const user_uuid = generateShortUUID();
 
-  const created = await prisma.tbl_tent_users1.create({
-    data: {
-      tent_id: tenant.tent_id,
-      branch_id: null, // always null
+  return await prisma.$transaction(async (tx) => {
+    const created = await tx.tbl_tent_users1.create({
+      data: {
+        tent_id: tenant.tent_id,
+        user_uuid,
+        user_name,
+        user_email,
+        user_country_code,
+        user_phone,
+        password: hashed,
+        is_owner,
+        is_email_verified: false,
+      },
+    });
+
+    if (assignmentData.length > 0) {
+      await tx.tbl_user_roles.createMany({
+        data: assignmentData.map((assignment) => ({
+          user_id: created.user_id,
+          role_id: assignment.role_id,
+          branch_id: assignment.branch_id,
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    // Fetch created user with roles
+    const userWithRoles = await tx.tbl_tent_users1.findUnique({
+      where: { user_id: created.user_id },
+      include: {
+        tbl_user_roles: {
+          include: {
+            tbl_roles: true,
+            tbl_branches: {
+              select: { branch_uuid: true, branch_name: true },
+            },
+          },
+        },
+      },
+    });
+
+    return {
       user_uuid,
       user_name,
       user_email,
-      user_country_code,
-      user_phone,
-      password: hashed,
       is_owner,
-      is_email_verified: false,
-    },
+      roles: userWithRoles.tbl_user_roles.map((ur) => ({
+        role_uuid: ur.tbl_roles.role_uuid,
+        role_name: ur.tbl_roles.role_name,
+        branch: ur.tbl_branches
+          ? {
+              branch_uuid: ur.tbl_branches.branch_uuid,
+              branch_name: ur.tbl_branches.branch_name,
+            }
+          : null,
+        scope: ur.branch_id === null ? "tenant" : "branch",
+      })),
+    };
   });
-
-  // 5️⃣ Assign role
-  if (role) {
-    await prisma.tbl_user_roles.create({
-      data: { user_id: created.user_id, role_id: role.role_id },
-    });
-  }
-
-  return {
-    user_uuid,
-    user_name,
-    user_email,
-    role_uuid,
-    is_owner,
-  };
 }
 
 /**
@@ -602,16 +650,14 @@ export async function updateTenantUserRepo({
   user_name,
   user_email,
   user_phone,
-  role_uuid = undefined, // null = remove role, undefined = keep existing
+  role_assignments = undefined,
 }) {
-  // 1️⃣ Fetch user
   const user = await prisma.tbl_tent_users1.findUnique({
     where: { user_uuid: userUuid },
     select: { user_id: true, tent_id: true },
   });
   if (!user) throw new Error("User not found");
 
-  // 2️⃣ Validate email uniqueness inside tenant
   if (user_email) {
     const other = await prisma.tbl_tent_users1.findFirst({
       where: {
@@ -623,23 +669,65 @@ export async function updateTenantUserRepo({
     if (other) throw new Error("Email already used in this tenant");
   }
 
-  // 3️⃣ Validate role if provided
-  let roleToAssign = null;
+  // Process role assignments if provided
+  let assignmentData = null;
 
-  if (role_uuid !== undefined && role_uuid !== null) {
-    const role = await prisma.tbl_roles.findUnique({
-      where: { role_uuid },
-      select: { role_id: true, tent_id: true },
-    });
+  if (role_assignments !== undefined) {
+    if (role_assignments.length === 0) {
+      assignmentData = [];
+    } else {
+      await validateRoleAssignments(role_assignments, user.tent_id);
 
-    if (!role) throw new Error("Role not found");
-    if (role.tent_id !== user.tent_id)
-      throw new Error("Role does not belong to tenant");
+      assignmentData = [];
+      const assignmentDetails = [];
 
-    roleToAssign = role;
+      for (const assignment of role_assignments) {
+        const { role_uuid, branch_uuid } = assignment;
+
+        const role = await prisma.tbl_roles.findFirst({
+          where: {
+            role_uuid,
+            tent_id: user.tent_id,
+            is_active: true,
+          },
+          select: { role_id: true, role_name: true },
+        });
+
+        if (!role) {
+          throw new Error(`Role not found: ${role_uuid}`);
+        }
+
+        let branchId = null;
+        if (branch_uuid) {
+          const branch = await prisma.tbl_branches.findFirst({
+            where: { branch_uuid, tent_id: user.tent_id },
+            select: { branch_id: true },
+          });
+
+          if (!branch) {
+            throw new Error(`Invalid branch: ${branch_uuid}`);
+          }
+
+          branchId = branch.branch_id;
+        }
+
+        assignmentData.push({
+          role_id: role.role_id,
+          branch_id: branchId,
+        });
+
+        assignmentDetails.push({
+          role_id: role.role_id,
+          role_name: role.role_name,
+          branch_id: branchId,
+          branch_uuid: branch_uuid || null,
+        });
+      }
+
+      validateBranchConflicts(assignmentDetails);
+    }
   }
 
-  // 4️⃣ Apply update in transaction
   return await prisma.$transaction(async (tx) => {
     await tx.tbl_tent_users1.update({
       where: { user_uuid: userUuid },
@@ -651,44 +739,52 @@ export async function updateTenantUserRepo({
       },
     });
 
-    // Update role assignment
-    if (role_uuid === null) {
-      // Remove role
-      await tx.tbl_user_roles.deleteMany({ where: { user_id: user.user_id } });
-    } else if (roleToAssign) {
-      const existing = await tx.tbl_user_roles.findFirst({
+    if (assignmentData !== null) {
+      await tx.tbl_user_roles.deleteMany({
         where: { user_id: user.user_id },
-        select: { id: true },
       });
 
-      if (existing) {
-        await tx.tbl_user_roles.update({
-          where: { id: existing.id },
-          data: { role_id: roleToAssign.role_id },
-        });
-      } else {
-        await tx.tbl_user_roles.create({
-          data: { user_id: user.user_id, role_id: roleToAssign.role_id },
+      if (assignmentData.length > 0) {
+        await tx.tbl_user_roles.createMany({
+          data: assignmentData.map((assignment) => ({
+            user_id: user.user_id,
+            role_id: assignment.role_id,
+            branch_id: assignment.branch_id,
+          })),
+          skipDuplicates: true,
         });
       }
     }
 
-    // Fetch updated user + role
     const updated = await tx.tbl_tent_users1.findUnique({
       where: { user_id: user.user_id },
       include: {
-        tbl_user_roles: { include: { tbl_roles: true } },
+        tbl_user_roles: {
+          include: {
+            tbl_roles: true,
+            tbl_branches: {
+              select: { branch_uuid: true, branch_name: true },
+            },
+          },
+        },
       },
     });
-
-    const assignedRole = updated.tbl_user_roles[0]?.tbl_roles || null;
 
     return {
       user_uuid: updated.user_uuid,
       user_name: updated.user_name,
       user_email: updated.user_email,
-      role_uuid: assignedRole?.role_uuid ?? null,
-      role_name: assignedRole?.name ?? null,
+      roles: updated.tbl_user_roles.map((ur) => ({
+        role_uuid: ur.tbl_roles.role_uuid,
+        role_name: ur.tbl_roles.role_name,
+        branch: ur.tbl_branches
+          ? {
+              branch_uuid: ur.tbl_branches.branch_uuid,
+              branch_name: ur.tbl_branches.branch_name,
+            }
+          : null,
+        scope: ur.branch_id === null ? "tenant" : "branch",
+      })),
     };
   });
 }
@@ -734,10 +830,12 @@ export async function getUserByUuidRepo(userUuid) {
     where: { user_uuid: userUuid },
     include: {
       tbl_user_roles: {
-        include: { tbl_roles: true },
-      },
-      tbl_branches: {
-        select: { branch_uuid: true, branch_name: true },
+        include: {
+          tbl_roles: true,
+          tbl_branches: {
+            select: { branch_uuid: true, branch_name: true },
+          },
+        },
       },
     },
   });
@@ -753,10 +851,18 @@ export async function getUserByUuidRepo(userUuid) {
     is_owner: user.is_owner,
     created_on: user.created_on,
     modified_on: user.modified_on,
-    branch_uuid: user.tbl_branches?.branch_uuid ?? null,
-    branch_name: user.tbl_branches?.branch_name ?? null,
-    role_uuid: user.tbl_user_roles[0]?.tbl_roles?.role_uuid || null,
-    role_name: user.tbl_user_roles[0]?.tbl_roles?.name || null,
+    roles: user.tbl_user_roles.map((ur) => ({
+      role_uuid: ur.tbl_roles.role_uuid,
+      role_name: ur.tbl_roles.role_name,
+      role_type: ur.tbl_roles.role_type,
+      branch: ur.tbl_branches
+        ? {
+            branch_uuid: ur.tbl_branches.branch_uuid,
+            branch_name: ur.tbl_branches.branch_name,
+          }
+        : null,
+      scope: ur.branch_id === null ? "tenant" : "branch",
+    })),
   };
 }
 
@@ -859,6 +965,9 @@ export async function getTenantMenuRepo(tentUuid) {
 
 /** ------------------ USER MENU ------------------- **/
 
+/**
+ * Get user menu based on their role assignments for a specific branch
+ */
 export async function getUserMenuRepo(userUuid, branchUuid) {
   // 1️⃣ Validate user
   const user = await prisma.tbl_tent_users1.findUnique({
@@ -875,78 +984,66 @@ export async function getUserMenuRepo(userUuid, branchUuid) {
   });
 
   if (!branch) throw new Error("Branch not found");
-  if (branch.tent_id !== user.tent_id)
-    throw new Error("Branch does not belong to user tenant");
+  if (branch.tent_id !== user.tent_id) {
+    throw new Error("Branch does not belong to user's organization");
+  }
 
   const currentBranchId = branch.branch_id;
 
-  // 3️⃣ Get user's assigned roles (raw assignments)
-  const userRoles = await prisma.tbl_user_roles.findMany({
+  // 3️⃣ Get user's role assignments for this branch context
+  const userRoleAssignments = await prisma.tbl_user_roles.findMany({
     where: { user_id: user.user_id },
-    include: { tbl_roles: true },
+    include: {
+      tbl_roles: true,
+    },
   });
 
-  if (!userRoles.length) return { mainNavigation: [], footerNavigation: [] };
+  if (!userRoleAssignments.length) {
+    return { mainNavigation: [], footerNavigation: [] };
+  }
 
-  // 4️⃣ Determine which role copies apply to this branch
+  // 4️⃣ Determine which roles apply to the current branch
   const eligibleRoleIds = [];
-  const roleGroupCache = new Map();
 
-  for (const ur of userRoles) {
-    const role = ur.tbl_roles;
-
-    // A) Tenant-wide roles (branch_id = null)
-    if (role.branch_id === null) {
-      eligibleRoleIds.push(role.role_id);
-      continue;
-    }
-
-    // B) Branch-level role for this branch
-    if (role.branch_id === currentBranchId) {
-      eligibleRoleIds.push(role.role_id);
-      continue;
-    }
-
-    // C) Multi-branch → look for a copy with same role_group_uuid for this branch
-    if (role.role_group_uuid) {
-      if (!roleGroupCache.has(role.role_group_uuid)) {
-        const copy = await prisma.tbl_roles.findFirst({
-          where: {
-            role_group_uuid: role.role_group_uuid,
-            branch_id: currentBranchId,
-            is_active: true,
-            is_delete: false,
-          },
-        });
-        roleGroupCache.set(role.role_group_uuid, copy);
-      }
-      const matchingCopy = roleGroupCache.get(role.role_group_uuid);
-      if (matchingCopy) eligibleRoleIds.push(matchingCopy.role_id);
+  for (const assignment of userRoleAssignments) {
+    // ✅ Check assignment.branch_id (not role.branch_id)
+    if (assignment.branch_id === null) {
+      // Tenant-wide role - applies to all branches
+      eligibleRoleIds.push(assignment.role_id);
+    } else if (assignment.branch_id === currentBranchId) {
+      // Branch-specific role for this exact branch
+      eligibleRoleIds.push(assignment.role_id);
     }
   }
 
-  if (!eligibleRoleIds.length)
+  if (!eligibleRoleIds.length) {
     return { mainNavigation: [], footerNavigation: [] };
+  }
 
-  // 5️⃣ Collect permissions for all eligible roles
+  // 5️⃣ Fetch permissions for eligible roles
   const permissionRows = await prisma.tbl_role_permissions.findMany({
     where: { role_id: { in: eligibleRoleIds } },
     include: { tbl_menus: true },
   });
 
-  // 6️⃣ Merge permissions per menu
-  const merged = new Map();
+  // 6️⃣ Merge permissions per menu (union of all roles)
+  const mergedPermissions = new Map();
 
   for (const rp of permissionRows) {
     const menu = rp.tbl_menus;
     if (!menu) continue;
 
-    const existing = merged.get(menu.menu_id) || {
+    const existing = mergedPermissions.get(menu.menu_id) || {
       menu,
-      permissions: { read: false, add: false, update: false, delete: false },
+      permissions: {
+        read: false,
+        add: false,
+        update: false,
+        delete: false,
+      },
     };
 
-    merged.set(menu.menu_id, {
+    mergedPermissions.set(menu.menu_id, {
       menu,
       permissions: {
         read: existing.permissions.read || rp.can_read,
@@ -957,20 +1054,20 @@ export async function getUserMenuRepo(userUuid, branchUuid) {
     });
   }
 
-  // 7️⃣ Filter menus the user can see
-  const accessibleMenus = [...merged.values()]
+  // 7️⃣ Filter menus user can access (must have read permission)
+  const accessibleMenus = [...mergedPermissions.values()]
     .filter((m) => m.permissions.read)
     .map((m) => ({ ...m.menu, permissions: m.permissions }))
     .sort((a, b) => a.sort_order - b.sort_order);
 
-  // 8️⃣ Build hierarchical navigation groups
-  const map = {};
+  // 8️⃣ Build hierarchical navigation structure
+  const menuMap = {};
   const mainGroups = {};
   const footerGroups = {};
 
-  // Map base menu nodes
+  // Create menu nodes
   accessibleMenus.forEach((menu) => {
-    map[menu.menu_id] = {
+    menuMap[menu.menu_id] = {
       title: menu.menu_name,
       url: menu.path,
       icon: menu.icon,
@@ -983,35 +1080,42 @@ export async function getUserMenuRepo(userUuid, branchUuid) {
     };
   });
 
-  // Build hierarchy
+  // Build parent-child hierarchy
   accessibleMenus.forEach((menu) => {
-    if (menu.parent_menu_id && map[menu.parent_menu_id]) {
-      map[menu.parent_menu_id].subItems.push(map[menu.menu_id]);
+    if (menu.parent_menu_id && menuMap[menu.parent_menu_id]) {
+      menuMap[menu.parent_menu_id].subItems.push(menuMap[menu.menu_id]);
     }
   });
 
-  // Classify as main/footer groups
+  // Group into main navigation and footer navigation
   accessibleMenus.forEach((menu) => {
+    // Only include top-level menus (no parent)
     if (!menu.parent_menu_id) {
       if (menu.is_main_menu) {
-        if (!mainGroups[menu.menu_group]) mainGroups[menu.menu_group] = [];
-        mainGroups[menu.menu_group].push(map[menu.menu_id]);
+        if (!mainGroups[menu.menu_group]) {
+          mainGroups[menu.menu_group] = [];
+        }
+        mainGroups[menu.menu_group].push(menuMap[menu.menu_id]);
       }
+
       if (menu.is_footer_menu) {
-        if (!footerGroups[menu.menu_group]) footerGroups[menu.menu_group] = [];
-        footerGroups[menu.menu_group].push(map[menu.menu_id]);
+        if (!footerGroups[menu.menu_group]) {
+          footerGroups[menu.menu_group] = [];
+        }
+        footerGroups[menu.menu_group].push(menuMap[menu.menu_id]);
       }
     }
   });
 
+  // 9️⃣ Return formatted navigation
   return {
     mainNavigation: Object.entries(mainGroups).map(([title, items]) => ({
       title,
-      items,
+      items: items.sort((a, b) => a.sort_order - b.sort_order),
     })),
     footerNavigation: Object.entries(footerGroups).map(([title, items]) => ({
       title,
-      items,
+      items: items.sort((a, b) => a.sort_order - b.sort_order),
     })),
   };
 }

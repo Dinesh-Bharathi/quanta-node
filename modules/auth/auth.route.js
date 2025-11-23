@@ -31,57 +31,102 @@ router.post(
 router.get("/verify-email/:token", verifyEmailController);
 router.post("/register-tenant/:userUuid", registerTenantController);
 router.post("/login", loginValidation, cryptoMiddleware, loginController);
+
 router.get(
   "/google/login",
-  passport.authenticate("google-login", { scope: ["profile", "email"] })
+  passport.authenticate("google-login", {
+    scope: ["profile", "email"],
+    prompt: "select_account",
+  })
 );
 
 router.get(
   "/google/login/callback",
   passport.authenticate("google-login", {
     session: false,
-    failureRedirect: `${process.env.CLIENT_URL}/login?error=not_found`,
+    failureRedirect: `${process.env.CLIENT_URL}/login?error=auth_failed`,
   }),
-  (req, res) => {
-    const { user_uuid, tent_uuid, user_email } = req.user;
+  async (req, res) => {
+    try {
+      const { user_uuid, tent_uuid, user_email } = req.user;
 
-    const token = generateToken({ user_uuid, tent_uuid, user_email });
+      // Generate JWT token
+      const token = generateToken({
+        user_uuid,
+        tent_uuid,
+        user_email,
+      });
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "None" : "Strict",
-      maxAge: 24 * 60 * 60 * 1000,
-    });
+      // Set secure HTTP-only cookie
+      res.cookie("token", token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: process.env.NODE_ENV === "production" ? "None" : "Strict",
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        path: "/",
+      });
 
-    res.redirect(`${process.env.CLIENT_URL}/dashboard`);
+      // Redirect to dashboard
+      res.redirect(`${process.env.CLIENT_URL}/dashboard`);
+    } catch (error) {
+      console.error("OAuth login callback error:", error);
+      res.redirect(`${process.env.CLIENT_URL}/login?error=server_error`);
+    }
   }
 );
 
 router.get(
   "/google/signup",
-  passport.authenticate("google-signup", { scope: ["profile", "email"] })
+  passport.authenticate("google-signup", {
+    scope: ["profile", "email"],
+    prompt: "select_account",
+  })
 );
 
 router.get(
   "/google/signup/callback",
   passport.authenticate("google-signup", {
     session: false,
-    failureRedirect: `${process.env.CLIENT_URL}/signup?error=exists`,
+    failureRedirect: `${process.env.CLIENT_URL}/signup?error=auth_failed`,
   }),
-  (req, res) => {
-    const { user_uuid, tent_uuid, user_email } = req.user;
+  async (req, res) => {
+    try {
+      const { user_uuid, tent_uuid } = req.user;
 
-    const token = generateToken({ user_uuid, tent_uuid, user_email });
+      // If the user has a tenant → direct login flow
+      if (tent_uuid) {
+        return res.redirect(`${process.env.CLIENT_URL}/dashboard`);
+      }
 
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "None" : "Strict",
-      maxAge: 24 * 60 * 60 * 1000,
-    });
+      // If no tenant → onboarding
+      return res.redirect(
+        `${process.env.CLIENT_URL}/signup/onboarding?user_uuid=${user_uuid}`
+      );
+    } catch (error) {
+      console.error("OAuth signup callback error:", error);
+      res.redirect(`${process.env.CLIENT_URL}/signup?error=server_error`);
+    }
+  }
+);
 
-    res.redirect(`${process.env.CLIENT_URL}/dashboard`);
+router.get(
+  "/google/link",
+  // You would need authentication middleware here
+  passport.authenticate("google-login", {
+    scope: ["profile", "email"],
+    prompt: "select_account",
+  })
+);
+
+router.get(
+  "/google/link/callback",
+  passport.authenticate("google-login", {
+    session: false,
+    failureRedirect: `${process.env.CLIENT_URL}/settings?error=link_failed`,
+  }),
+  async (req, res) => {
+    // Handle account linking logic here
+    res.redirect(`${process.env.CLIENT_URL}/settings?success=linked`);
   }
 );
 

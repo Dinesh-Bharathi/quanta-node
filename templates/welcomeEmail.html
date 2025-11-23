@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en" style="margin: 0; padding: 0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Welcome to Quanta – Let's Get Started</title>
+    <style>
+      /* Base Reset */
+      body,
+      table,
+      td,
+      a {
+        -webkit-text-size-adjust: 100%;
+        -ms-text-size-adjust: 100%;
+      }
+      table,
+      td {
+        mso-table-lspace: 0pt;
+        mso-table-rspace: 0pt;
+      }
+      img {
+        -ms-interpolation-mode: bicubic;
+      }
+
+      /* Global */
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100% !important;
+        height: 100% !important;
+        font-family: "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background-color: #f6f9fc;
+        color: #444;
+      }
+      a {
+        text-decoration: none;
+      }
+
+      /* Container */
+      .email-wrapper {
+        width: 100%;
+        background-color: #f6f9fc;
+        padding: 40px 0;
+      }
+
+      .email-container {
+        max-width: 600px;
+        margin: auto;
+        background: #ffffff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+      }
+
+      /* Header */
+      .header {
+        background: linear-gradient(135deg, #10b981, #059669);
+        color: #ffffff;
+        text-align: center;
+        padding: 40px 20px 30px;
+      }
+
+      .header img {
+        width: 120px;
+        margin-bottom: 15px;
+      }
+
+      .header h1 {
+        font-size: 26px;
+        margin: 0;
+        font-weight: 600;
+      }
+
+      /* Body */
+      .content {
+        padding: 35px 30px;
+        background-color: #ffffff;
+        text-align: left;
+      }
+
+      .content h2 {
+        font-size: 20px;
+        color: #111;
+        margin-bottom: 10px;
+        font-weight: 600;
+      }
+
+      .content p {
+        font-size: 15px;
+        line-height: 1.6;
+        color: #555;
+        margin: 8px 0;
+      }
+
+      .success-badge {
+        display: inline-block;
+        background-color: #d1fae5;
+        color: #065f46;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 14px;
+        margin: 15px 0;
+      }
+
+      .feature-list {
+        background-color: #f9fafb;
+        border-left: 4px solid #10b981;
+        padding: 20px;
+        margin: 20px 0;
+        border-radius: 6px;
+      }
+
+      .feature-item {
+        display: flex;
+        align-items: flex-start;
+        margin-bottom: 12px;
+      }
+
+      .feature-item:last-child {
+        margin-bottom: 0;
+      }
+
+      .feature-icon {
+        color: #10b981;
+        font-size: 20px;
+        margin-right: 12px;
+        font-weight: bold;
+      }
+
+      .feature-text {
+        flex: 1;
+        color: #374151;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .button {
+        display: inline-block;
+        background-color: #10b981;
+        color: #ffffff !important;
+        padding: 12px 30px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 15px;
+        text-align: center;
+        margin: 25px 0;
+      }
+
+      .info-box {
+        background-color: #eff6ff;
+        border: 1px solid #bfdbfe;
+        border-radius: 8px;
+        padding: 15px;
+        margin: 20px 0;
+      }
+
+      .info-box p {
+        margin: 5px 0;
+        color: #1e40af;
+        font-size: 14px;
+      }
+
+      .footer {
+        background: #fafafa;
+        padding: 20px;
+        text-align: center;
+        font-size: 13px;
+        color: #888;
+        border-top: 1px solid #eee;
+      }
+
+      .footer a {
+        color: #10b981;
+        text-decoration: none;
+      }
+
+      /* Responsive */
+      @media only screen and (max-width: 600px) {
+        .email-container {
+          width: 90% !important;
+        }
+        .content {
+          padding: 25px 20px !important;
+        }
+        .button {
+          width: 100%;
+          box-sizing: border-box;
+        }
+      }
+
+      /* 🌗 Dark Mode */
+      @media (prefers-color-scheme: dark) {
+        body {
+          background-color: #0d1117 !important;
+          color: #c9d1d9 !important;
+        }
+        .email-container {
+          background: #161b22 !important;
+          color: #c9d1d9 !important;
+          box-shadow: 0 2px 10px rgba(255, 255, 255, 0.05);
+        }
+        .header {
+          background: linear-gradient(135deg, #10b981, #059669) !important;
+          color: #ffffff !important;
+        }
+        .content {
+          background: #161b22 !important;
+        }
+        .content h2 {
+          color: #f0f6fc !important;
+        }
+        .content p {
+          color: #c9d1d9 !important;
+        }
+        .success-badge {
+          background-color: #1e3a2f !important;
+          color: #6ee7b7 !important;
+        }
+        .feature-list {
+          background-color: #0d1117 !important;
+          border-left-color: #10b981 !important;
+        }
+        .feature-text {
+          color: #c9d1d9 !important;
+        }
+        .info-box {
+          background-color: #1c2938 !important;
+          border-color: #2563eb !important;
+        }
+        .info-box p {
+          color: #60a5fa !important;
+        }
+        .footer {
+          background: #0d1117 !important;
+          color: #8b949e !important;
+          border-top: 1px solid #21262d !important;
+        }
+        .footer a {
+          color: #34d399 !important;
+        }
+        .button {
+          background-color: #10b981 !important;
+          color: #ffffff !important;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="email-wrapper">
+      <div class="email-container">
+        <!-- Header -->
+        <div class="header">
+          <img
+            src="https://raw.githubusercontent.com/Dinesh-Bharathi/quanta-tech/main/public/logo.png"
+            alt="Quanta Logo"
+          />
+          <h1>🎉 Welcome to Quanta!</h1>
+        </div>
+
+        <!-- Body -->
+        <div class="content">
+          <h2>Hi {{user_name}},</h2>
+
+          <span class="success-badge">✓ Registration Successful</span>
+
+          <p>
+            Congratulations! Your account has been successfully created and
+            verified. We're excited to have you as part of the
+            <b>Quanta</b> community.
+          </p>
+
+          <div class="info-box">
+            <p><strong>📧 Email:</strong> {{user_email}}</p>
+            <p><strong>🏢 Organization:</strong> {{tent_name}}</p>
+          </div>
+
+          <h2 style="margin-top: 30px">What's Next?</h2>
+
+          <div class="feature-list">
+            <div class="feature-item">
+              <span class="feature-icon">✓</span>
+              <div class="feature-text">
+                <strong>Set up your workspace</strong> – Customize your
+                dashboard and invite team members
+              </div>
+            </div>
+            <div class="feature-item">
+              <span class="feature-icon">✓</span>
+              <div class="feature-text">
+                <strong>Explore features</strong> – Discover all the tools
+                available to streamline your operations
+              </div>
+            </div>
+            <div class="feature-item">
+              <span class="feature-icon">✓</span>
+              <div class="feature-text">
+                <strong>Get support</strong> – Our team is here to help you
+                every step of the way
+              </div>
+            </div>
+          </div>
+
+          <p style="text-align: center">
+            <a href="{{dashboard_url}}" target="_blank" class="button">
+              Go to Dashboard
+            </a>
+          </p>
+
+          <p>
+            Need help getting started? Check out our
+            <a
+              href="{{client_url}}/help"
+              style="color: #10b981; font-weight: 600"
+              >Help Center</a
+            >
+            or reply to this email with any questions.
+          </p>
+
+          <p style="margin-top: 30px; color: #6b7280; font-size: 14px">
+            Thank you for choosing Quanta. We're committed to helping your
+            business succeed!
+          </p>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+          <p>
+            © {{current_year}} Quanta. All rights reserved.<br />
+            <a href="{{client_url}}" target="_blank">Visit our website</a> |
+            <a href="{{client_url}}/contact" target="_blank">Contact Support</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

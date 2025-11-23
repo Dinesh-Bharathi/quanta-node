@@ -33,3 +33,30 @@ export async function sendMagicLinkEmail(user) {
   //   html,
   // });
 }
+
+/**
+ * Send welcome email after successful registration
+ */
+export async function sendWelcomeEmail(user, tenant) {
+  const clientUrl = process.env.CLIENT_URL;
+  const currentYear = new Date().getFullYear();
+  const dashboardUrl = `${clientUrl}/dashboard`;
+
+  let html = await loadTemplate("welcomeEmail.html");
+
+  html = html
+    .replace(/{{user_name}}/g, user.user_name)
+    .replace(/{{user_email}}/g, user.user_email)
+    .replace(/{{tent_name}}/g, tenant.tent_name)
+    .replace(/{{dashboard_url}}/g, dashboardUrl)
+    .replace(/{{client_url}}/g, clientUrl)
+    .replace(/{{current_year}}/g, currentYear);
+
+  await sendEmail({
+    to: user.user_email,
+    subject: "🎉 Welcome to Quanta – Your Account is Ready!",
+    html,
+  });
+
+  console.log("✅ Welcome email sent to:", user.user_email);
+}

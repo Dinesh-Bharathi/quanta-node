@@ -50,13 +50,13 @@ router.get(
   getTenantRoleByUuid
 );
 router.put(
-  "/tenant/role/:roleGroupUuid",
+  "/tenant/role/:roleUuid",
   verifyToken,
   cryptoMiddleware,
   updateTenantRole
 );
 router.delete(
-  "/tenant/role/:tentUuid/:roleGroupUuid",
+  "/tenant/role/:tentUuid/:roleUuid",
   verifyToken,
   cryptoMiddleware,
   deleteTenantRole

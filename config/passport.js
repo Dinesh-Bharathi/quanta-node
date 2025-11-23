@@ -3,6 +3,7 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import prisma from "./prismaClient.js";
 import { generateShortUUID } from "../utils/generateUUID.js";
 import { createDefaultSetupForTenant } from "../modules/auth/tenantSetup.js";
+import { sendGoogleSignupEmail } from "../services/emailService.js";
 
 // ==================================================
 // ✅ GOOGLE LOGIN STRATEGY
@@ -199,6 +200,7 @@ passport.use(
             user_email: existingUser.user_email,
             user_name: existingUser.user_name,
             tent_uuid: existingUser.tbl_tent_master1?.tent_uuid || null,
+            isNewUser: false, // Flag to indicate existing user
           });
         }
 
@@ -211,16 +213,28 @@ passport.use(
             user_name: name,
             user_email: email,
             is_owner: false,
-            is_email_verified: true,
+            is_email_verified: true, // Auto-verified via Google
             tent_id: null, // IMPORTANT: No tenant yet
           },
         });
+
+        // 3️⃣ Send welcome email to new Google user
+        try {
+          await sendGoogleSignupEmail({
+            user_name: newUser.user_name,
+            user_email: newUser.user_email,
+          });
+        } catch (emailError) {
+          console.error("⚠️ Failed to send Google signup email:", emailError);
+          // Don't fail the signup if email fails
+        }
 
         return done(null, {
           user_uuid: newUser.user_uuid,
           user_email: newUser.user_email,
           user_name: newUser.user_name,
           tent_uuid: null, // No tenant yet
+          isNewUser: true, // Flag to indicate new user
         });
       } catch (error) {
         console.error("Google signup error:", error);

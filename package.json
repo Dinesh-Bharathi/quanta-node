@@ -1,6 +1,6 @@
 {
   "name": "quanta-node",
-  "version": "0.1.11",
+  "version": "0.1.12",
   "main": "server.js",
   "license": "MIT",
   "type": "module",

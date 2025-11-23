@@ -8,6 +8,10 @@ import {
   sendWelcomeEmail,
 } from "../../services/emailService.js";
 import { sanitizeResponse } from "../../utils/sanitizeResponse.js";
+import {
+  createTenantCore,
+  createTenantPermissions,
+} from "./auth.repository.js";
 
 /**
  * Step 1: Create user and send magic link
@@ -212,26 +216,13 @@ export async function resendVerificationService(user_email) {
  * Step 2: Register tenant for verified user
  */
 export async function registerTenantForUser(userUuid, data) {
-  const {
-    tent_name,
-    tent_phone,
-    tent_email,
-    tent_address1,
-    tent_address2,
-    tent_state,
-    tent_country,
-    tent_postalcode,
-    tent_registration_number,
-    plan_uuid,
-  } = data;
-
-  // 1️⃣ Validate user
+  // 1. Validate user
   const user = await prisma.tbl_tent_users1.findUnique({
     where: { user_uuid: userUuid },
     select: {
       user_id: true,
       user_uuid: true,
-      user_name: true, // ✅ Add user_name for welcome email
+      user_name: true,
       user_email: true,
       is_email_verified: true,
       tent_id: true,
@@ -239,124 +230,36 @@ export async function registerTenantForUser(userUuid, data) {
   });
 
   if (!user) throw new Error("User not found");
-
-  if (!user.is_email_verified) {
+  if (!user.is_email_verified)
     throw new Error("Please verify your email first");
-  }
+  if (user.tent_id) throw new Error("User already linked to a tenant");
 
-  if (user.tent_id) {
-    throw new Error("User already linked to a tenant. Please login.");
-  }
+  // 2. Create core tenant setup inside transaction
+  const core = await createTenantCore(prisma, user, data, data.plan_uuid);
 
-  // 2️⃣ Validate required fields
-  // if (!tent_name || !tent_country || !tent_state) {
-  //   throw new Error("Tenant name, country, and state are required");
-  // }
+  // 3. Setup permissions outside transaction
+  await createTenantPermissions(prisma, core.roles);
 
-  // 3️⃣ Check if email is already used by another tenant
-  if (tent_email) {
-    const existingTenant = await prisma.tbl_tent_master1.findFirst({
-      where: { tent_email },
-    });
-    if (existingTenant) {
-      throw new Error(
-        "This email is already registered with another organization"
-      );
-    }
-  }
+  // 4. Send welcome email (best effort)
+  sendWelcomeEmail(
+    { user_name: user.user_name, user_email: user.user_email },
+    { tent_name: core.tenant.tent_name }
+  ).catch((e) => console.error("Email error:", e));
 
-  const tent_uuid = generateShortUUID();
-  const branch_uuid = generateShortUUID();
-
-  // 4️⃣ Create tenant, branch, and default setup in transaction
-  const result = await prisma.$transaction(async (tx) => {
-    // Create tenant
-    const tenant = await tx.tbl_tent_master1.create({
-      data: {
-        tent_uuid,
-        tent_name,
-        tent_phone,
-        tent_email: tent_email || user.user_email,
-        tent_address1,
-        tent_address2,
-        tent_state,
-        tent_country,
-        tent_postalcode,
-        tent_registration_number,
-        tent_status: true,
-      },
-    });
-
-    // Create HQ branch
-    const branch = await tx.tbl_branches.create({
-      data: {
-        branch_uuid,
-        tent_id: tenant.tent_id,
-        branch_name: tent_name,
-        is_hq: true,
-        status: true,
-        address1: tent_address1,
-        address2: tent_address2,
-        country: tent_country,
-        state: tent_state,
-        postal_code: tent_postalcode,
-        phone: tent_phone,
-      },
-    });
-
-    // Link user to tenant as owner
-    const updatedUser = await tx.tbl_tent_users1.update({
-      where: { user_uuid: userUuid },
-      data: {
-        tent_id: tenant.tent_id,
-        is_owner: true,
-      },
-    });
-
-    // Create default roles and assign Super Admin to owner
-    await createDefaultSetupForTenant(
-      tx,
-      tenant.tent_id,
-      updatedUser.user_id,
-      plan_uuid
-    );
-
-    return sanitizeResponse({ tenant, branch, updatedUser });
-  });
-
-  // 5️⃣ Send welcome email after successful registration
-  try {
-    await sendWelcomeEmail(
-      {
-        user_name: user.user_name,
-        user_email: user.user_email,
-        user_uuid: user.user_uuid,
-      },
-      {
-        tent_name: result.tenant.tent_name,
-        tent_uuid: result.tenant.tent_uuid,
-      }
-    );
-  } catch (emailError) {
-    // Log error but don't fail the registration
-    console.error("⚠️ Failed to send welcome email:", emailError);
-    // Registration was successful, so we continue
-  }
-
-  // 6️⃣ Generate session token
+  // 5. Create JWT
   const token = generateToken({
-    userId: Number(user.user_id),
-    tent_uuid: result.tenant.tent_uuid,
-    user_uuid: result.updatedUser.user_uuid,
-    user_email: result.updatedUser.user_email,
+    userId: Number(core.updatedUser.user_id),
+    tent_uuid: core.tenant.tent_uuid,
+    user_uuid: core.updatedUser.user_uuid,
+    user_email: core.updatedUser.user_email,
     is_owner: true,
   });
 
   return sanitizeResponse({
     token,
-    tent_uuid: result.tenant.tent_uuid,
-    branch_uuid: result.branch.branch_uuid,
-    user_uuid: result.updatedUser.user_uuid,
+    tent_uuid: core.tenant.tent_uuid,
+    branch_uuid: core.branch.branch_uuid,
+    user_uuid: core.updatedUser.user_uuid,
   });
 }
 /**

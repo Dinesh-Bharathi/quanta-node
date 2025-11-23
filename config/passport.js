@@ -25,10 +25,23 @@ passport.use(
           });
         }
 
-        // 🔍 Find user by email
+        // 🔍 Find user by email with roles and branches
         const user = await prisma.tbl_tent_users1.findFirst({
           where: { user_email: email },
-          include: { tbl_tent_master1: true },
+          include: {
+            tbl_tent_master1: true,
+            tbl_user_roles: {
+              include: {
+                tbl_roles: true,
+                tbl_branches: {
+                  select: {
+                    branch_uuid: true,
+                    branch_name: true,
+                  },
+                },
+              },
+            },
+          },
         });
 
         if (!user) {
@@ -56,6 +69,100 @@ passport.use(
 // ==================================================
 // ✅ GOOGLE SIGNUP STRATEGY
 // ==================================================
+// passport.use(
+//   "google-signup",
+//   new GoogleStrategy(
+//     {
+//       clientID: process.env.GOOGLE_CLIENT_ID,
+//       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+//       callbackURL: `${process.env.SERVER_URL}/api/auth/google/signup/callback`,
+//     },
+//     async (accessToken, refreshToken, profile, done) => {
+//       const email = profile.emails?.[0]?.value;
+//       const name = profile.displayName;
+//       const firstName = profile.name?.givenName || name;
+//       const lastName = profile.name?.familyName || "";
+
+//       if (!email) {
+//         return done(null, false, {
+//           message: "Google account email not found.",
+//         });
+//       }
+
+//       try {
+//         // 🔍 Check if user already exists
+//         const existingUser = await prisma.tbl_tent_users1.findFirst({
+//           where: { user_email: email },
+//           include: { tbl_tent_master1: true },
+//         });
+
+//         if (existingUser) {
+//           return done(null, false, {
+//             message: "User already exists. Please login instead.",
+//           });
+//         }
+
+//         // 🔁 Transaction for tenant + user creation
+//         const result = await prisma.$transaction(async (tx) => {
+//           // 🔹 1. Create new tenant with default name
+//           const tent_uuid = generateShortUUID();
+
+//           // Generate a default tenant name from user's name or email
+//           const defaultTentName = name
+//             ? `${name}'s Account`
+//             : email.split("@")[0] + "'s Account";
+
+//           const newTenant = await tx.tbl_tent_master1.create({
+//             data: {
+//               tent_uuid,
+//               tent_name: defaultTentName, // ✅ Required field
+//               tent_email: email,
+//               is_email_verified: true,
+//               tent_status: true, // Assuming active by default
+//             },
+//           });
+
+//           // 🔹 2. Create tenant owner user
+//           const user_uuid = generateShortUUID();
+//           const newUser = await tx.tbl_tent_users1.create({
+//             data: {
+//               tent_id: newTenant.tent_id,
+//               user_uuid,
+//               user_name: name,
+//               user_email: email,
+//               is_owner: true,
+//               is_email_verified: true,
+//             },
+//           });
+
+//           // 🔹 3. Initialize tenant setup (roles, menus, subscription, branches, etc.)
+//           await createDefaultSetupForTenant(
+//             tx,
+//             newTenant.tent_id,
+//             newUser.user_id
+//           );
+
+//           return { newTenant, newUser };
+//         });
+
+//         const { newTenant, newUser } = result;
+
+//         const userData = {
+//           user_uuid: newUser.user_uuid,
+//           user_email: newUser.user_email,
+//           user_name: newUser.user_name,
+//           tent_uuid: newTenant.tent_uuid,
+//         };
+
+//         return done(null, userData);
+//       } catch (error) {
+//         console.error("Google signup error:", error);
+//         return done(error, null);
+//       }
+//     }
+//   )
+// );
+
 passport.use(
   "google-signup",
   new GoogleStrategy(
@@ -65,74 +172,56 @@ passport.use(
       callbackURL: `${process.env.SERVER_URL}/api/auth/google/signup/callback`,
     },
     async (accessToken, refreshToken, profile, done) => {
-      const email = profile.emails?.[0]?.value;
-      const name = profile.displayName;
-
-      if (!email) {
-        return done(null, false, {
-          message: "Google account email not found.",
-        });
-      }
-
       try {
-        // 🔍 Check if user already exists
-        const existingUser = await prisma.tbl_tent_users1.findUnique({
-          where: { user_email: email },
-          include: { tbl_tent_master1: true },
-        });
+        const email = profile.emails?.[0]?.value;
+        const name = profile.displayName || "";
+        const firstName = profile.name?.givenName || "";
+        const lastName = profile.name?.familyName || "";
 
-        if (existingUser) {
-          // ✅ Merge accounts if needed (optional enhancement)
+        if (!email) {
           return done(null, false, {
-            message: "User already exists. Please login instead.",
+            message: "Google account email not found.",
           });
         }
 
-        // 🔁 Transaction for tenant + user creation
-        const result = await prisma.$transaction(async (tx) => {
-          // 🔹 1. Create new tenant
-          const tent_uuid = generateShortUUID();
-          const newTenant = await tx.tbl_tent_master1.create({
-            data: {
-              tent_uuid,
-              tent_email: email,
-              is_email_verified: true,
-            },
-          });
-
-          // 🔹 2. Create tenant owner user
-          const user_uuid = generateShortUUID();
-          const newUser = await tx.tbl_tent_users1.create({
-            data: {
-              tent_id: newTenant.tent_id,
-              user_uuid,
-              user_name: name,
-              user_email: email,
-              is_owner: true,
-              is_email_verified: true,
-            },
-          });
-
-          // 🔹 3. Initialize tenant setup (roles, menus, subscription, etc.)
-          await createDefaultSetupForTenant(
-            tx,
-            newTenant.tent_id,
-            newUser.user_id
-          );
-
-          return { newTenant, newUser };
+        // 1️⃣ Check if user already exists
+        const existingUser = await prisma.tbl_tent_users1.findFirst({
+          where: { user_email: email },
+          include: {
+            tbl_tent_master1: true, // Check if tenant exists
+          },
         });
 
-        const { newTenant, newUser } = result;
+        if (existingUser) {
+          // Existing user → check if tenant exists
+          return done(null, {
+            user_uuid: existingUser.user_uuid,
+            user_email: existingUser.user_email,
+            user_name: existingUser.user_name,
+            tent_uuid: existingUser.tbl_tent_master1?.tent_uuid || null,
+          });
+        }
 
-        const userData = {
+        // 2️⃣ Create a new user WITHOUT tenant
+        const user_uuid = generateShortUUID();
+
+        const newUser = await prisma.tbl_tent_users1.create({
+          data: {
+            user_uuid,
+            user_name: name,
+            user_email: email,
+            is_owner: false,
+            is_email_verified: true,
+            tent_id: null, // IMPORTANT: No tenant yet
+          },
+        });
+
+        return done(null, {
           user_uuid: newUser.user_uuid,
           user_email: newUser.user_email,
           user_name: newUser.user_name,
-          tent_uuid: newTenant.tent_uuid,
-        };
-
-        return done(null, userData);
+          tent_uuid: null, // No tenant yet
+        });
       } catch (error) {
         console.error("Google signup error:", error);
         return done(error, null);

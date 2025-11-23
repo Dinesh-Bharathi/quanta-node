@@ -1,3 +1,4 @@
+import { errorResponse } from "../../utils/response.js";
 import {
   addTenantRoleService,
   assignUserToBranchService,
@@ -37,26 +38,33 @@ export const getTenantMenus = async (req, res, next) => {
 export const getUserMenus = async (req, res, next) => {
   try {
     const { userUuid, branchUuid } = req.params;
+
+    // Validation
+    if (!userUuid || !branchUuid) {
+      return res.status(400).json({
+        success: false,
+        message: "User UUID and Branch UUID are required",
+      });
+    }
+
     const menus = await getUsermenuService(userUuid, branchUuid);
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      ...menus,
+      data: menus,
     });
-  } catch (err) {
-    next(err);
+  } catch (error) {
+    console.error("❌ Get user menus error:", error);
+    next(error);
   }
 };
 
 export const getTenantRoles = async (req, res) => {
   try {
     const { tentUuid } = req.params;
-    const { branchUuid = null, scope = null } = req.query;
 
     const roles = await getTenantRolesService({
       tentUuid,
-      branchUuid,
-      scope,
     });
 
     res.status(200).json({ success: true, data: roles });
@@ -69,13 +77,18 @@ export const getTenantRoles = async (req, res) => {
 export const addTenantRole = async (req, res, next) => {
   try {
     const { tentUuid } = req.params;
-    const { roleName, description, permissions, scope, branch_uuid } = req.body;
+    const { roleName, description, permissions } = req.body;
 
-    if (!roleName || !tentUuid) {
-      return res.status(400).json({
-        success: false,
-        message: "Role name and tenant UUID are required.",
-      });
+    if (!tentUuid || !roleName) {
+      return errorResponse(res, "Tenant UUID and role name are required", 400);
+    }
+
+    if (!permissions || Object.keys(permissions).length === 0) {
+      return errorResponse(
+        res,
+        "At least one permission must be assigned",
+        400
+      );
     }
 
     const role = await addTenantRoleService({
@@ -83,8 +96,7 @@ export const addTenantRole = async (req, res, next) => {
       roleName,
       description,
       permissions,
-      scope,
-      branch_uuid,
+      createdBy: req.user?.userId || null,
     });
 
     res.status(201).json({
@@ -100,6 +112,10 @@ export const addTenantRole = async (req, res, next) => {
 export const getTenantRoleByUuid = async (req, res, next) => {
   try {
     const { roleUuid } = req.params;
+
+    if (!roleUuid) {
+      return errorResponse(res, "Role UUID is required", 400);
+    }
 
     const roleData = await getTenantRoleByUuidService(roleUuid);
 
@@ -119,25 +135,21 @@ export const getTenantRoleByUuid = async (req, res, next) => {
 
 export const updateTenantRole = async (req, res, next) => {
   try {
-    const { roleGroupUuid } = req.params;
-    const { tentUuid, roleName, description, permissions, scope, branch_uuid } =
-      req.body;
+    const { roleUuid } = req.params;
+    const { tentUuid, roleName, description, permissions } = req.body;
 
-    if (!roleGroupUuid || !tentUuid) {
-      return res.status(400).json({
-        success: false,
-        message: "roleGroupUuid and tentUuid are required",
-      });
+    // Validation
+    if (!roleUuid || !tentUuid) {
+      return errorResponse(res, "Role UUID and Tenant UUID are required", 400);
     }
 
     const updated = await updateTenantRoleService({
-      roleGroupUuid,
+      roleUuid,
       tentUuid,
       roleName,
       description,
       permissions,
-      scope,
-      branch_uuid,
+      updatedBy: req.user?.userId || null,
     });
 
     res.status(200).json({
@@ -153,16 +165,13 @@ export const updateTenantRole = async (req, res, next) => {
 
 export const deleteTenantRole = async (req, res, next) => {
   try {
-    const { tentUuid, roleGroupUuid } = req.params;
+    const { tentUuid, roleUuid } = req.params;
 
-    if (!roleGroupUuid || !tentUuid) {
-      return res.status(400).json({
-        success: false,
-        message: "roleGroupUuid and tentUuid are required",
-      });
+    if (!roleUuid || !tentUuid) {
+      return errorResponse(res, "Role UUID and Tenant UUID are required", 400);
     }
 
-    await deleteTenantRoleService({ roleGroupUuid, tentUuid });
+    await deleteTenantRoleService({ roleUuid, tentUuid });
 
     res.status(200).json({
       success: true,

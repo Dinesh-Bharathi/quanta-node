@@ -11,79 +11,125 @@ import prisma from "../../config/prismaClient.js";
 import jwt from "jsonwebtoken";
 
 /**
- * STEP 1: Register user (no tenant yet)
- * - Creates user
- * - Sends magic link for verification
+ * POST /api/auth/register
+ * Create new user and send verification email
  */
-export const registerUserController = async (req, res) => {
+export const registerUserController = async (req, res, next) => {
   try {
+    const { user_name, user_email, password } = req.body;
+
+    // Validation
+    if (!user_name || !user_email || !password) {
+      return errorResponse(res, "Name, email, and password are required", 400);
+    }
+
+    // Email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(user_email)) {
+      return errorResponse(res, "Invalid email format", 400);
+    }
+
+    // Password strength validation
+    if (password.length < 8) {
+      return errorResponse(
+        res,
+        "Password must be at least 8 characters long",
+        400
+      );
+    }
+
     const result = await registerUser(req.body);
 
+    // Handle different registration statuses
     if (result.status === "verification_sent") {
       return successResponse(
         res,
-        "Verification email sent successfully",
-        result
+        result.message,
+        {
+          user_uuid: result.user_uuid,
+          user_email: result.user_email,
+        },
+        201
       );
     }
 
     if (result.status === "verification_resent") {
-      return successResponse(res, "Verification link resent", result);
+      return successResponse(res, result.message, {
+        user_email: result.user_email,
+      });
     }
 
     if (result.status === "tenant_pending") {
-      return successResponse(
-        res,
-        "User verified but organisation not created",
-        result
-      );
+      return successResponse(res, result.message, {
+        user_uuid: result.user_uuid,
+        user_email: result.user_email,
+        redirect: result.redirect,
+      });
     }
   } catch (error) {
-    console.error("Register User error:", error);
-    return errorResponse(res, error.message || "Failed to create user", 400);
+    console.error("❌ Register User error:", error);
+    next(error);
   }
 };
 
+/**
+ * POST /api/auth/resend-verification
+ * Resend verification email
+ */
 export const resendVerificationController = async (req, res, next) => {
   try {
     const { user_email } = req.body;
-    if (!user_email) return errorResponse(res, "Email is required", 400);
+
+    if (!user_email) {
+      return errorResponse(res, "Email is required", 400);
+    }
 
     const result = await resendVerificationService(user_email);
 
     return successResponse(res, result.message, result.data);
   } catch (error) {
-    console.error("Resend Verification Error:", error);
-    return errorResponse(
-      res,
-      error.message || "Failed to resend verification email",
-      400
-    );
+    console.error("❌ Resend Verification Error:", error);
+    next(error);
   }
 };
 
 /**
- * STEP 2: Verify user email (GET link from email)
- * - Validates magic token
- * - Updates is_email_verified = true
- * - Redirects to org setup page
+ * GET /api/auth/verify-email/:token
+ * Verify user email from magic link
  */
 export const verifyEmailController = async (req, res) => {
   try {
     const { token } = req.params;
+
+    // Verify JWT token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    await prisma.tbl_tent_users1.update({
+    // Update user verification status
+    const user = await prisma.tbl_tent_users1.update({
       where: { user_uuid: decoded.user_uuid },
       data: { is_email_verified: true },
+      select: {
+        user_uuid: true,
+        user_email: true,
+        tent_id: true,
+      },
     });
 
+    console.log("✅ Email verified for user:", user.user_email);
+
+    // Redirect to organization setup
     return res.redirect(
-      `${process.env.CLIENT_URL}/signup/onboarding?user_uuid=${decoded.user_uuid}`
+      `${process.env.CLIENT_URL}/signup/onboarding?user_uuid=${user.user_uuid}&verified=true`
     );
   } catch (error) {
-    console.error("Email verification error:", error);
-    return res.redirect(`${process.env.CLIENT_URL}/signup/failed`);
+    console.error("❌ Email verification error:", error);
+
+    // Redirect to failure page with error info
+    const errorType =
+      error.name === "TokenExpiredError" ? "expired" : "invalid";
+    return res.redirect(
+      `${process.env.CLIENT_URL}/signup/verification-failed?error=${errorType}`
+    );
   }
 };
 
@@ -119,38 +165,59 @@ export const registerTenantController = async (req, res) => {
 };
 
 /**
- * Login user by email/password
+ * POST /api/auth/login
+ * Authenticate user and create session
  */
 export const loginController = async (req, res, next) => {
   try {
-    const { token, user_uuid, tent_uuid, branch_uuid } = await authenticateUser(
-      req.body
-    );
+    const { email, password } = req.body;
 
-    res.cookie("token", token, {
+    // Validation
+    if (!email || !password) {
+      return errorResponse(res, "Email and password are required", 400);
+    }
+
+    // Authenticate user
+    const result = await authenticateUser({ email, password });
+
+    // Set secure HTTP-only cookie
+    res.cookie("token", result.token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "None" : "Strict",
-      maxAge: 24 * 60 * 60 * 1000,
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
     });
 
-    return successResponse(res, "Login successful", {
-      user_uuid,
-      tent_uuid,
-      branch_uuid, // 🔥 Important for branch-based routing
-    });
+    return successResponse(
+      res,
+      "Login successful",
+      {
+        user: result.user,
+        tenant: result.tenant,
+        default_branch_uuid: result.default_branch_uuid,
+      },
+      200
+    );
   } catch (error) {
-    console.error("Login error:", error);
-    return errorResponse(res, error.message || "Login failed", 401);
+    console.error("❌ Login error:", error);
+
+    // Don't expose internal errors to client
+    const message =
+      error.message === "Invalid credentials"
+        ? "Invalid email or password"
+        : error.message;
+
+    return errorResponse(res, message, 401);
   }
 };
 
 /**
- * Validate current user session
+ * GET /api/auth/session
+ * Get current user session data
  */
 export const getSessionController = async (req, res, next) => {
   try {
-    const { user_uuid } = req.user;
+    const { user_uuid } = req.user; // From auth middleware
 
     if (!user_uuid) {
       return errorResponse(
@@ -164,26 +231,28 @@ export const getSessionController = async (req, res, next) => {
 
     return successResponse(res, "Session validated successfully", session);
   } catch (error) {
-    console.error("Get session error:", error);
-    return errorResponse(res, error.message || "Failed to fetch session", 400);
+    console.error("❌ Get session error:", error);
+    next(error);
   }
 };
 
 /**
- * Logout user (clear auth cookie)
+ * POST /api/auth/logout
+ * Clear user session
  */
-export const logoutController = async (req, res, next) => {
+export const logoutController = async (req, res) => {
   try {
+    // Clear cookie
     res.clearCookie("token", {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "None" : "Strict",
     });
 
-    return successResponse(res, "Logged out successfully");
+    return successResponse(res, "Logged out successfully", null);
   } catch (error) {
-    console.error("Logout error:", error);
-    return errorResponse(res, error.message || "Logout failed", 400);
+    console.error("❌ Logout error:", error);
+    return errorResponse(res, "Logout failed", 500);
   }
 };
 

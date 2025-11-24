@@ -2,6 +2,7 @@ import { Router } from "express";
 import prisma from "../config/prismaClient.js";
 import { loadTemplate, sendEmail } from "../utils/nodemailer.js";
 
+import lookupsRoutes from "../modules/lookups/lookups.route.js";
 import authRoutes from "../modules/auth/auth.route.js";
 import settingsRoutes from "../modules/settings/settings.route.js";
 import controlsRoutes from "../modules/controls/controls.route.js";
@@ -61,6 +62,7 @@ const sendWelcomeEmail = async (req, res) => {
 };
 router.post("/welcome", sendWelcomeEmail);
 
+router.use("/lookups", lookupsRoutes);
 router.use("/auth", authRoutes);
 router.use("/controls", controlsRoutes);
 router.use("/settings", settingsRoutes);

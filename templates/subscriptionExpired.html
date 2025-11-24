@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en" style="margin: 0; padding: 0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Your Subscription Has Expired</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background-color: #f6f9fc;
+      }
+
+      .email-wrapper {
+        width: 100%;
+        background-color: #f6f9fc;
+        padding: 40px 0;
+      }
+
+      .email-container {
+        max-width: 600px;
+        margin: auto;
+        background: #ffffff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+      }
+
+      .header {
+        background: linear-gradient(135deg, #6b7280, #4b5563);
+        color: #ffffff;
+        text-align: center;
+        padding: 40px 20px 30px;
+      }
+
+      .header img {
+        width: 120px;
+        margin-bottom: 15px;
+      }
+
+      .header h1 {
+        font-size: 26px;
+        margin: 0;
+        font-weight: 600;
+      }
+
+      .content {
+        padding: 35px 30px;
+        background-color: #ffffff;
+        text-align: left;
+      }
+
+      .content h2 {
+        font-size: 20px;
+        color: #111;
+        margin-bottom: 10px;
+        font-weight: 600;
+      }
+
+      .content p {
+        font-size: 15px;
+        line-height: 1.6;
+        color: #555;
+        margin: 8px 0;
+      }
+
+      .expired-badge {
+        display: inline-block;
+        background-color: #f3f4f6;
+        color: #374151;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 14px;
+        margin: 15px 0;
+      }
+
+      .info-box {
+        background-color: #f9fafb;
+        border: 2px solid #d1d5db;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 20px 0;
+        text-align: center;
+      }
+
+      .info-box p {
+        margin: 5px 0;
+        color: #6b7280;
+        font-size: 15px;
+      }
+
+      .button {
+        display: inline-block;
+        background-color: #10b981;
+        color: #ffffff !important;
+        padding: 14px 35px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 16px;
+        text-align: center;
+        margin: 25px 0;
+      }
+
+      .benefits-list {
+        background-color: #ecfdf5;
+        border-left: 4px solid #10b981;
+        padding: 20px;
+        margin: 20px 0;
+        border-radius: 6px;
+      }
+
+      .benefit-item {
+        display: flex;
+        align-items: flex-start;
+        margin-bottom: 12px;
+      }
+
+      .benefit-item:last-child {
+        margin-bottom: 0;
+      }
+
+      .benefit-icon {
+        color: #10b981;
+        font-size: 20px;
+        margin-right: 12px;
+        font-weight: bold;
+      }
+
+      .benefit-text {
+        flex: 1;
+        color: #065f46;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .footer {
+        background: #fafafa;
+        padding: 20px;
+        text-align: center;
+        font-size: 13px;
+        color: #888;
+        border-top: 1px solid #eee;
+      }
+
+      .footer a {
+        color: #10b981;
+        text-decoration: none;
+      }
+
+      @media only screen and (max-width: 600px) {
+        .email-container {
+          width: 90% !important;
+        }
+        .content {
+          padding: 25px 20px !important;
+        }
+        .button {
+          width: 100%;
+          box-sizing: border-box;
+        }
+      }
+
+      @media (prefers-color-scheme: dark) {
+        body {
+          background-color: #0d1117 !important;
+        }
+        .email-container {
+          background: #161b22 !important;
+        }
+        .content {
+          background: #161b22 !important;
+        }
+        .content h2,
+        .content p {
+          color: #c9d1d9 !important;
+        }
+        .expired-badge {
+          background-color: #21262d !important;
+          color: #8b949e !important;
+        }
+        .info-box {
+          background-color: #0d1117 !important;
+          border-color: #30363d !important;
+        }
+        .info-box p {
+          color: #8b949e !important;
+        }
+        .benefits-list {
+          background-color: #0d1e17 !important;
+        }
+        .benefit-text {
+          color: #6ee7b7 !important;
+        }
+        .footer {
+          background: #0d1117 !important;
+          color: #8b949e !important;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="email-wrapper">
+      <div class="email-container">
+        <div class="header">
+          <img
+            src="https://raw.githubusercontent.com/Dinesh-Bharathi/quanta-tech/main/public/logo.png"
+            alt="Quanta Logo"
+          />
+          <h1>❌ Subscription Expired</h1>
+        </div>
+
+        <div class="content">
+          <h2>Hi {{tent_name}},</h2>
+
+          <span class="expired-badge">Subscription Status: Expired</span>
+
+          <p>
+            Your <strong>{{plan_name}}</strong> subscription has expired as of
+            <strong>{{end_date}}</strong>.
+          </p>
+
+          <div class="info-box">
+            <p>Your access to Quanta has been restricted.</p>
+            <p>Renew now to restore full functionality.</p>
+          </div>
+
+          <p>
+            We understand that managing subscriptions can be challenging. That's
+            why we've made renewing quick and easy – it takes just a few moments
+            to get back up and running.
+          </p>
+
+          <div class="benefits-list">
+            <div class="benefit-item">
+              <span class="benefit-icon">✓</span>
+              <div class="benefit-text">
+                <strong>Instant Restoration</strong> – Your account will be
+                reactivated immediately
+              </div>
+            </div>
+            <div class="benefit-item">
+              <span class="benefit-icon">✓</span>
+              <div class="benefit-text">
+                <strong>All Data Preserved</strong> – Your data is safe and
+                waiting for you
+              </div>
+            </div>
+            <div class="benefit-item">
+              <span class="benefit-icon">✓</span>
+              <div class="benefit-text">
+                <strong>No Setup Required</strong> – Pick up exactly where you
+                left off
+              </div>
+            </div>
+          </div>
+
+          <p style="text-align: center">
+            <a href="{{renew_url}}" target="_blank" class="button">
+              Reactivate My Account
+            </a>
+          </p>
+
+          <p style="margin-top: 30px; color: #6b7280; font-size: 14px">
+            Have questions or need assistance? We're here to help!
+            <a
+              href="{{client_url}}/contact"
+              style="color: #10b981; font-weight: 600"
+              >Contact Support</a
+            >
+          </p>
+        </div>
+
+        <div class="footer">
+          <p>
+            © {{current_year}} Quanta. All rights reserved.<br />
+            <a href="{{client_url}}" target="_blank">Visit our website</a> |
+            <a href="{{client_url}}/contact" target="_blank">Contact Support</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en" style="margin: 0; padding: 0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Special Offer Just for You</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background-color: #f6f9fc;
+      }
+
+      .email-wrapper {
+        width: 100%;
+        background-color: #f6f9fc;
+        padding: 40px 0;
+      }
+
+      .email-container {
+        max-width: 600px;
+        margin: auto;
+        background: #ffffff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+      }
+
+      .header {
+        background: linear-gradient(135deg, #ec4899, #db2777);
+        color: #ffffff;
+        text-align: center;
+        padding: 40px 20px 30px;
+      }
+
+      .header img {
+        width: 120px;
+        margin-bottom: 15px;
+      }
+
+      .header h1 {
+        font-size: 28px;
+        margin: 0;
+        font-weight: 700;
+      }
+
+      .content {
+        padding: 35px 30px;
+        background-color: #ffffff;
+        text-align: left;
+      }
+
+      .content h2 {
+        font-size: 20px;
+        color: #111;
+        margin-bottom: 10px;
+        font-weight: 600;
+      }
+
+      .content p {
+        font-size: 15px;
+        line-height: 1.6;
+        color: #555;
+        margin: 8px 0;
+      }
+
+      .special-badge {
+        display: inline-block;
+        background: linear-gradient(135deg, #fce7f3, #fbcfe8);
+        color: #9f1239;
+        padding: 10px 20px;
+        border-radius: 25px;
+        font-weight: 700;
+        font-size: 15px;
+        margin: 15px 0;
+        border: 2px solid #ec4899;
+      }
+
+      .offer-box {
+        background: linear-gradient(135deg, #fce7f3, #fbcfe8);
+        border: 3px solid #ec4899;
+        border-radius: 12px;
+        padding: 30px;
+        margin: 25px 0;
+        text-align: center;
+        box-shadow: 0 4px 8px rgba(236, 72, 153, 0.2);
+      }
+
+      .offer-title {
+        font-size: 24px;
+        font-weight: 800;
+        color: #9f1239;
+        margin: 0 0 15px 0;
+      }
+
+      .offer-details {
+        font-size: 18px;
+        color: #be123c;
+        margin: 10px 0;
+        font-weight: 600;
+      }
+
+      .offer-note {
+        font-size: 13px;
+        color: #9f1239;
+        margin-top: 15px;
+        font-style: italic;
+      }
+
+      .button {
+        display: inline-block;
+        background: linear-gradient(135deg, #ec4899, #db2777);
+        color: #ffffff !important;
+        padding: 16px 40px;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 17px;
+        text-align: center;
+        margin: 25px 0;
+        box-shadow: 0 6px 12px rgba(236, 72, 153, 0.3);
+        text-transform: uppercase;
+      }
+
+      .value-props {
+        background-color: #f9fafb;
+        border-radius: 8px;
+        padding: 20px;
+        margin: 20px 0;
+      }
+
+      .value-item {
+        display: flex;
+        align-items: center;
+        margin-bottom: 15px;
+        padding: 10px;
+        background-color: #ffffff;
+        border-radius: 6px;
+      }
+
+      .value-item:last-child {
+        margin-bottom: 0;
+      }
+
+      .value-icon {
+        font-size: 28px;
+        margin-right: 15px;
+        min-width: 40px;
+        text-align: center;
+      }
+
+      .value-text {
+        flex: 1;
+      }
+
+      .value-title {
+        font-weight: 600;
+        color: #111;
+        font-size: 15px;
+        margin-bottom: 3px;
+      }
+
+      .value-desc {
+        color: #6b7280;
+        font-size: 13px;
+      }
+
+      .urgency-note {
+        background-color: #fee2e2;
+        border-left: 4px solid #ef4444;
+        padding: 15px;
+        margin: 20px 0;
+        border-radius: 6px;
+      }
+
+      .urgency-note p {
+        color: #991b1b;
+        font-weight: 600;
+        margin: 0;
+      }
+
+      .footer {
+        background: #fafafa;
+        padding: 20px;
+        text-align: center;
+        font-size: 13px;
+        color: #888;
+        border-top: 1px solid #eee;
+      }
+
+      .footer a {
+        color: #ec4899;
+        text-decoration: none;
+      }
+
+      @media only screen and (max-width: 600px) {
+        .email-container {
+          width: 90% !important;
+        }
+        .content {
+          padding: 25px 20px !important;
+        }
+        .offer-title {
+          font-size: 20px;
+        }
+        .button {
+          width: 100%;
+          box-sizing: border-box;
+        }
+      }
+
+      @media (prefers-color-scheme: dark) {
+        body {
+          background-color: #0d1117 !important;
+        }
+        .email-container {
+          background: #161b22 !important;
+        }
+        .content {
+          background: #161b22 !important;
+        }
+        .content h2,
+        .content p {
+          color: #c9d1d9 !important;
+        }
+        .offer-box {
+          background: linear-gradient(135deg, #3e1f2f, #4a1e35) !important;
+        }
+        .offer-title,
+        .offer-details,
+        .offer-note {
+          color: #fbcfe8 !important;
+        }
+        .value-props {
+          background-color: #0d1117 !important;
+        }
+        .value-item {
+          background-color: #21262d !important;
+        }
+        .value-title {
+          color: #f0f6fc !important;
+        }
+        .value-desc {
+          color: #8b949e !important;
+        }
+        .urgency-note {
+          background-color: #2d1111 !important;
+        }
+        .urgency-note p {
+          color: #fca5a5 !important;
+        }
+        .footer {
+          background: #0d1117 !important;
+          color: #8b949e !important;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="email-wrapper">
+      <div class="email-container">
+        <div class="header">
+          <img
+            src="https://raw.githubusercontent.com/Dinesh-Bharathi/quanta-tech/main/public/logo.png"
+            alt="Quanta Logo"
+          />
+          <h1>🎁 Exclusive Offer Inside</h1>
+        </div>
+
+        <div class="content">
+          <h2>Hi {{tent_name}},</h2>
+
+          <span class="special-badge">🌟 LIMITED TIME OFFER</span>
+
+          <p>
+            We really value you as a customer, and we want to make it easier for
+            you to come back. That's why we're offering you a
+            <strong>special discount</strong>
+            when you renew today!
+          </p>
+
+          <div class="offer-box">
+            <div class="offer-title">🎉 Special Welcome Back Offer</div>
+            <div class="offer-details">
+              Get 15% OFF your next {{plan_name}} subscription
+            </div>
+            <div class="offer-note">
+              ⏰ This exclusive offer expires in 48 hours
+            </div>
+          </div>
+
+          <p>
+            <strong>Why our customers love Quanta:</strong>
+          </p>
+
+          <div class="value-props">
+            <div class="value-item">
+              <div class="value-icon">💼</div>
+              <div class="value-text">
+                <div class="value-title">Boost Productivity</div>
+                <div class="value-desc">
+                  Save 10+ hours per week with automation
+                </div>
+              </div>
+            </div>
+            <div class="value-item">
+              <div class="value-icon">🔐</div>
+              <div class="value-text">
+                <div class="value-title">Enterprise Security</div>
+                <div class="value-desc">
+                  Bank-level encryption for your data
+                </div>
+              </div>
+            </div>
+            <div class="value-item">
+              <div class="value-icon">📈</div>
+              <div class="value-text">
+                <div class="value-title">Scale With Ease</div>
+                <div class="value-desc">Grow your team without limitations</div>
+              </div>
+            </div>
+            <div class="value-item">
+              <div class="value-icon">💬</div>
+              <div class="value-text">
+                <div class="value-title">24/7 Support</div>
+                <div class="value-desc">Get help whenever you need it</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="urgency-note">
+            <p>⚠️ This offer expires in 48 hours – Don't miss out!</p>
+          </div>
+
+          <p style="text-align: center">
+            <a href="{{renew_url}}" target="_blank" class="button">
+              Claim My 15% Discount
+            </a>
+          </p>
+
+          <p
+            style="
+              text-align: center;
+              margin-top: 20px;
+              font-size: 14px;
+              color: #6b7280;
+            "
+          >
+            Questions about this offer? Our team is standing by to help.
+            <br />
+            <a href="{{support_url}}" style="color: #ec4899; font-weight: 600"
+              >Contact Support</a
+            >
+          </p>
+        </div>
+
+        <div class="footer">
+          <p>
+            © {{current_year}} Quanta. All rights reserved.<br />
+            <a href="{{client_url}}" target="_blank">Visit our website</a> |
+            <a href="{{client_url}}/contact" target="_blank">Contact Support</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

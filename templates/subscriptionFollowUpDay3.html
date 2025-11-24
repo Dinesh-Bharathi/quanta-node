@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en" style="margin: 0; padding: 0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>We Miss You at Quanta</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        font-family: "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background-color: #f6f9fc;
+      }
+
+      .email-wrapper {
+        width: 100%;
+        background-color: #f6f9fc;
+        padding: 40px 0;
+      }
+
+      .email-container {
+        max-width: 600px;
+        margin: auto;
+        background: #ffffff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+      }
+
+      .header {
+        background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+        color: #ffffff;
+        text-align: center;
+        padding: 40px 20px 30px;
+      }
+
+      .header img {
+        width: 120px;
+        margin-bottom: 15px;
+      }
+
+      .header h1 {
+        font-size: 26px;
+        margin: 0;
+        font-weight: 600;
+      }
+
+      .content {
+        padding: 35px 30px;
+        background-color: #ffffff;
+        text-align: left;
+      }
+
+      .content h2 {
+        font-size: 20px;
+        color: #111;
+        margin-bottom: 10px;
+        font-weight: 600;
+      }
+
+      .content p {
+        font-size: 15px;
+        line-height: 1.6;
+        color: #555;
+        margin: 8px 0;
+      }
+
+      .highlight-box {
+        background: linear-gradient(135deg, #faf5ff, #f3e8ff);
+        border: 2px solid #8b5cf6;
+        border-radius: 12px;
+        padding: 25px;
+        margin: 25px 0;
+        text-align: center;
+      }
+
+      .highlight-box h3 {
+        color: #6b21a8;
+        font-size: 20px;
+        margin: 0 0 15px 0;
+      }
+
+      .highlight-box p {
+        color: #7c3aed;
+        font-size: 16px;
+        margin: 5px 0;
+      }
+
+      .button {
+        display: inline-block;
+        background-color: #8b5cf6;
+        color: #ffffff !important;
+        padding: 14px 35px;
+        border-radius: 6px;
+        font-weight: 600;
+        font-size: 16px;
+        text-align: center;
+        margin: 25px 0;
+      }
+
+      .features-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+        margin: 20px 0;
+      }
+
+      .feature-card {
+        background-color: #faf5ff;
+        border: 1px solid #e9d5ff;
+        border-radius: 8px;
+        padding: 15px;
+        text-align: center;
+      }
+
+      .feature-icon {
+        font-size: 32px;
+        margin-bottom: 8px;
+      }
+
+      .feature-title {
+        font-size: 14px;
+        font-weight: 600;
+        color: #6b21a8;
+        margin: 5px 0;
+      }
+
+      .testimonial {
+        background-color: #f9fafb;
+        border-left: 4px solid #8b5cf6;
+        padding: 20px;
+        margin: 20px 0;
+        border-radius: 6px;
+        font-style: italic;
+      }
+
+      .testimonial p {
+        color: #4b5563;
+        margin: 0 0 10px 0;
+      }
+
+      .testimonial-author {
+        color: #6b7280;
+        font-size: 14px;
+        font-weight: 600;
+        font-style: normal;
+      }
+
+      .footer {
+        background: #fafafa;
+        padding: 20px;
+        text-align: center;
+        font-size: 13px;
+        color: #888;
+        border-top: 1px solid #eee;
+      }
+
+      .footer a {
+        color: #8b5cf6;
+        text-decoration: none;
+      }
+
+      @media only screen and (max-width: 600px) {
+        .email-container {
+          width: 90% !important;
+        }
+        .content {
+          padding: 25px 20px !important;
+        }
+        .features-grid {
+          grid-template-columns: 1fr;
+        }
+        .button {
+          width: 100%;
+          box-sizing: border-box;
+        }
+      }
+
+      @media (prefers-color-scheme: dark) {
+        body {
+          background-color: #0d1117 !important;
+        }
+        .email-container {
+          background: #161b22 !important;
+        }
+        .content {
+          background: #161b22 !important;
+        }
+        .content h2,
+        .content p {
+          color: #c9d1d9 !important;
+        }
+        .highlight-box {
+          background: linear-gradient(135deg, #1e1533, #2d1f4a) !important;
+        }
+        .highlight-box h3,
+        .highlight-box p {
+          color: #c4b5fd !important;
+        }
+        .feature-card {
+          background-color: #1e1533 !important;
+          border-color: #4c1d95 !important;
+        }
+        .feature-title {
+          color: #c4b5fd !important;
+        }
+        .testimonial {
+          background-color: #0d1117 !important;
+        }
+        .testimonial p {
+          color: #8b949e !important;
+        }
+        .footer {
+          background: #0d1117 !important;
+          color: #8b949e !important;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="email-wrapper">
+      <div class="email-container">
+        <div class="header">
+          <img
+            src="https://raw.githubusercontent.com/Dinesh-Bharathi/quanta-tech/main/public/logo.png"
+            alt="Quanta Logo"
+          />
+          <h1>💡 We Miss You!</h1>
+        </div>
+
+        <div class="content">
+          <h2>Hi {{tent_name}},</h2>
+
+          <p>
+            We noticed your subscription expired a few days ago, and we wanted
+            to reach out personally. We genuinely miss having you as part of the
+            Quanta community!
+          </p>
+
+          <div class="highlight-box">
+            <h3>🎯 Your Team's Productivity Awaits</h3>
+            <p>Renew today and get back to work without missing a beat</p>
+          </div>
+
+          <p>
+            <strong>Here's what you're missing out on:</strong>
+          </p>
+
+          <div class="features-grid">
+            <div class="feature-card">
+              <div class="feature-icon">📊</div>
+              <div class="feature-title">Real-time Analytics</div>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">🤝</div>
+              <div class="feature-title">Team Collaboration</div>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">🔒</div>
+              <div class="feature-title">Secure Data Storage</div>
+            </div>
+            <div class="feature-card">
+              <div class="feature-icon">⚡</div>
+              <div class="feature-title">Automated Workflows</div>
+            </div>
+          </div>
+
+          <div class="testimonial">
+            <p>
+              "Quanta transformed how our team works together. We couldn't
+              imagine going back to our old processes."
+            </p>
+            <div class="testimonial-author">— Happy Quanta Customer</div>
+          </div>
+
+          <p>
+            We'd love to have you back! Renewing is quick and easy, and you'll
+            have instant access to all your data and tools.
+          </p>
+
+          <p style="text-align: center">
+            <a href="{{renew_url}}" target="_blank" class="button">
+              Rejoin Quanta Today
+            </a>
+          </p>
+
+          <p style="margin-top: 30px; color: #6b7280; font-size: 14px">
+            Have questions or feedback? We'd love to hear from you.
+            <a href="{{support_url}}" style="color: #8b5cf6; font-weight: 600"
+              >Talk to Support</a
+            >
+          </p>
+        </div>
+
+        <div class="footer">
+          <p>
+            © {{current_year}} Quanta. All rights reserved.<br />
+            <a href="{{client_url}}" target="_blank">Visit our website</a> |
+            <a href="{{client_url}}/contact" target="_blank">Contact Support</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

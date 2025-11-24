@@ -6,7 +6,7 @@ import { createDefaultSetupForTenant } from "./tenantSetup.js";
 import {
   sendMagicLinkEmail,
   sendWelcomeEmail,
-} from "../../services/emailService.js";
+} from "../../services/emails/emailService.js";
 import { sanitizeResponse } from "../../utils/sanitizeResponse.js";
 import {
   createTenantCore,
@@ -270,7 +270,7 @@ export async function authenticateUser({ email, password }) {
     where: { user_email: email },
     include: {
       tbl_tent_master1: true,
-      tbl_branches: true, // 🔥 user's assigned branch
+      tbl_branches: true,
     },
   });
 
@@ -282,8 +282,6 @@ export async function authenticateUser({ email, password }) {
   const token = generateToken({
     user_uuid: user.user_uuid,
     user_email: user.user_email,
-    tent_uuid: user.tent_id ? user.tbl_tent_master1?.tent_uuid : null,
-    branch_uuid: user.branch_id ? user.tbl_branches?.branch_uuid : null,
   });
 
   return {
@@ -302,7 +300,17 @@ export async function getActiveSession(userUuid) {
   const user = await prisma.tbl_tent_users1.findUnique({
     where: { user_uuid: userUuid },
     include: {
-      tbl_tent_master1: true,
+      tbl_tent_master1: {
+        include: {
+          tbl_tenant_subscriptions: {
+            include: {
+              tbl_subscription_plans: true,
+            },
+            orderBy: { start_date: "desc" },
+            take: 1,
+          },
+        },
+      },
       tbl_user_roles: {
         include: {
           tbl_roles: true,
@@ -406,6 +414,27 @@ export async function getActiveSession(userUuid) {
       : null,
   }));
 
+  const subscription =
+    user.tbl_tent_master1?.tbl_tenant_subscriptions?.[0] || null;
+
+  const subscriptionDetails = subscription
+    ? {
+        subscription_uuid: subscription.subscription_uuid,
+        payment_status: subscription.payment_status,
+        start_date: subscription.start_date,
+        end_date: subscription.end_date,
+        is_auto_renew: subscription.is_auto_renew,
+        plan_details: subscription.tbl_subscription_plans
+          ? {
+              plan_name: subscription.tbl_subscription_plans.plan_name,
+              plan_description:
+                subscription.tbl_subscription_plans.plan_description,
+              is_trial: subscription.tbl_subscription_plans.is_trial,
+            }
+          : null,
+      }
+    : null;
+
   // 5️⃣ Build session response
   return {
     user: {
@@ -433,6 +462,7 @@ export async function getActiveSession(userUuid) {
       tent_status: user.tbl_tent_master1.tent_status,
     },
     branches: allowedBranches,
+    subscription: subscriptionDetails,
     permissions: {
       has_tenant_wide_access: hasTenantWideAccess,
       accessible_branch_count: allowedBranches.length,

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en" style="margin: 0; padding: 0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FINAL NOTICE: Subscription Expires Tomorrow</title>
+    <style>
+      body,
+      table,
+      td,
+      a {
+        -webkit-text-size-adjust: 100%;
+        -ms-text-size-adjust: 100%;
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100% !important;
+        font-family: "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background-color: #f6f9fc;
+      }
+
+      .email-wrapper {
+        width: 100%;
+        background-color: #f6f9fc;
+        padding: 40px 0;
+      }
+
+      .email-container {
+        max-width: 600px;
+        margin: auto;
+        background: #ffffff;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+        border: 3px solid #dc2626;
+      }
+
+      .header {
+        background: linear-gradient(135deg, #b91c1c, #7f1d1d);
+        color: #ffffff;
+        text-align: center;
+        padding: 40px 20px 30px;
+      }
+
+      .header img {
+        width: 120px;
+        margin-bottom: 15px;
+      }
+
+      .header h1 {
+        font-size: 28px;
+        margin: 0;
+        font-weight: 700;
+        text-transform: uppercase;
+      }
+
+      .content {
+        padding: 35px 30px;
+        background-color: #ffffff;
+        text-align: left;
+      }
+
+      .content h2 {
+        font-size: 22px;
+        color: #111;
+        margin-bottom: 10px;
+        font-weight: 600;
+      }
+
+      .content p {
+        font-size: 15px;
+        line-height: 1.6;
+        color: #555;
+        margin: 8px 0;
+      }
+
+      .final-badge {
+        display: inline-block;
+        background-color: #dc2626;
+        color: #ffffff;
+        padding: 10px 20px;
+        border-radius: 20px;
+        font-weight: 700;
+        font-size: 15px;
+        margin: 15px 0;
+        animation: blink 1.5s infinite;
+      }
+
+      @keyframes blink {
+        0%,
+        50%,
+        100% {
+          opacity: 1;
+        }
+        25%,
+        75% {
+          opacity: 0.5;
+        }
+      }
+
+      .countdown-box {
+        background: linear-gradient(135deg, #fee2e2, #fecaca);
+        border: 3px solid #dc2626;
+        border-radius: 12px;
+        padding: 25px;
+        margin: 25px 0;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(220, 38, 38, 0.2);
+      }
+
+      .countdown-text {
+        font-size: 18px;
+        color: #991b1b;
+        font-weight: 600;
+        margin-bottom: 10px;
+      }
+
+      .countdown-number {
+        font-size: 72px;
+        font-weight: 900;
+        color: #b91c1c;
+        line-height: 1;
+        margin: 15px 0;
+      }
+
+      .countdown-label {
+        font-size: 24px;
+        font-weight: 600;
+        color: #7f1d1d;
+      }
+
+      .expire-date {
+        font-size: 16px;
+        color: #991b1b;
+        margin-top: 10px;
+      }
+
+      .button {
+        display: inline-block;
+        background: linear-gradient(135deg, #dc2626, #b91c1c);
+        color: #ffffff !important;
+        padding: 16px 40px;
+        border-radius: 8px;
+        font-weight: 700;
+        font-size: 17px;
+        text-align: center;
+        margin: 25px 0;
+        box-shadow: 0 6px 12px rgba(220, 38, 38, 0.4);
+        text-transform: uppercase;
+      }
+
+      .critical-warning {
+        background-color: #7f1d1d;
+        color: #ffffff;
+        padding: 20px;
+        margin: 20px 0;
+        border-radius: 8px;
+        text-align: center;
+      }
+
+      .critical-warning p {
+        color: #ffffff;
+        font-size: 16px;
+        font-weight: 600;
+        margin: 5px 0;
+      }
+
+      .footer {
+        background: #fafafa;
+        padding: 20px;
+        text-align: center;
+        font-size: 13px;
+        color: #888;
+        border-top: 1px solid #eee;
+      }
+
+      .footer a {
+        color: #dc2626;
+        text-decoration: none;
+      }
+
+      @media only screen and (max-width: 600px) {
+        .email-container {
+          width: 90% !important;
+        }
+        .content {
+          padding: 25px 20px !important;
+        }
+        .countdown-number {
+          font-size: 56px;
+        }
+        .button {
+          width: 100%;
+          box-sizing: border-box;
+        }
+      }
+
+      @media (prefers-color-scheme: dark) {
+        body {
+          background-color: #0d1117 !important;
+        }
+        .email-container {
+          background: #161b22 !important;
+          border-color: #dc2626 !important;
+        }
+        .content {
+          background: #161b22 !important;
+        }
+        .content h2,
+        .content p {
+          color: #c9d1d9 !important;
+        }
+        .countdown-box {
+          background: linear-gradient(135deg, #2d1111, #3e1f1f) !important;
+        }
+        .footer {
+          background: #0d1117 !important;
+          color: #8b949e !important;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="email-wrapper">
+      <div class="email-container">
+        <div class="header">
+          <img
+            src="https://raw.githubusercontent.com/Dinesh-Bharathi/quanta-tech/main/public/logo.png"
+            alt="Quanta Logo"
+          />
+          <h1>⚠️ FINAL NOTICE ⚠️</h1>
+        </div>
+
+        <div class="content">
+          <h2>Hi {{tent_name}},</h2>
+
+          <span class="final-badge">⚠️ EXPIRES TOMORROW</span>
+
+          <p style="font-size: 17px; font-weight: 600; color: #dc2626">
+            This is your FINAL reminder – your {{plan_name}} subscription
+            expires tomorrow!
+          </p>
+
+          <div class="countdown-box">
+            <div class="countdown-text">TIME REMAINING</div>
+            <div class="countdown-number">24</div>
+            <div class="countdown-label">HOURS</div>
+            <div class="expire-date">Expires: {{end_date}}</div>
+          </div>
+
+          <div class="critical-warning">
+            <p>🛑 CRITICAL: SERVICE INTERRUPTION IMMINENT</p>
+            <p>
+              Your team will lose access to all Quanta features after expiration
+            </p>
+          </div>
+
+          <p>
+            <strong>Act now to prevent service disruption!</strong> Renewing
+            your subscription takes less than 2 minutes and ensures continuous
+            access for your entire team.
+          </p>
+
+          <p style="text-align: center">
+            <a href="{{renew_url}}" target="_blank" class="button">
+              ⚡ Renew Immediately
+            </a>
+          </p>
+
+          <p
+            style="
+              text-align: center;
+              margin-top: 20px;
+              font-size: 14px;
+              color: #7f1d1d;
+            "
+          >
+            <strong
+              >This is your last chance to renew before expiration.</strong
+            >
+          </p>
+
+          <p style="margin-top: 30px; color: #6b7280; font-size: 14px">
+            Need immediate assistance? Contact our emergency support line.
+            <a
+              href="{{client_url}}/contact"
+              style="color: #dc2626; font-weight: 600"
+              >Emergency Support</a
+            >
+          </p>
+        </div>
+
+        <div class="footer">
+          <p>
+            © {{current_year}} Quanta. All rights reserved.<br />
+            <a href="{{client_url}}" target="_blank">Visit our website</a> |
+            <a href="{{client_url}}/contact" target="_blank">Contact Support</a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

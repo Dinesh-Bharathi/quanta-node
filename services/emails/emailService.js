@@ -1,6 +1,6 @@
 // import { loadTemplate, sendEmail } from "../utils/nodemailer.js";
-import { loadTemplate, sendEmail } from "../utils/resendEmail.js";
-import { generateToken } from "../utils/generateToken.js";
+import { loadTemplate, sendEmail } from "../../utils/resendEmail.js";
+import { generateToken } from "../../utils/generateToken.js";
 
 export async function sendMagicLinkEmail(user) {
   const token = generateToken(

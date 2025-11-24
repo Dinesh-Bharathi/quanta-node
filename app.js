@@ -13,6 +13,10 @@ import dotenv from "dotenv";
 import passport from "./config/passport.js";
 import morganLogger from "./middlewares/morganLogger.js";
 import morgan from "morgan";
+import {
+  initializeSubscriptionScheduler,
+  runManualCheck,
+} from "./cronjobs/subscriptionScheduler.js";
 
 dotenv.config();
 const app = express();
@@ -53,8 +57,35 @@ app.use(morgan("combined"));
 
 app.use(passport.initialize());
 
+// Initialize subscription scheduler on server startup
+initializeSubscriptionScheduler();
+
+app.get("/api/healthz", (req, res) => {
+  res.json({
+    success: true,
+    message: "API service is running 🚀",
+  });
+});
+
 // Rate Limiting
 app.use("/api", limiter);
+
+app.post("/api/admin/trigger-subscription-check", async (req, res) => {
+  try {
+    await runManualCheck();
+    res.json({
+      success: true,
+      message: "Subscription check completed successfully",
+    });
+  } catch (error) {
+    console.error("Error in manual subscription check:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error running subscription check",
+      error: error.message,
+    });
+  }
+});
 
 // Routes
 app.use("/api", routes);

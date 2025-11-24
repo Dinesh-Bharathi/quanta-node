@@ -10,13 +10,6 @@ import branchesRoutes from "../modules/branches/branches.route.js";
 
 const router = Router();
 
-router.get("/health", (req, res) => {
-  res.json({
-    success: true,
-    message: "API service is running 🚀",
-  });
-});
-
 router.get("/check-db", async (req, res) => {
   try {
     // ✅ Run a lightweight query to ensure Prisma → DB connectivity

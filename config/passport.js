@@ -3,7 +3,7 @@ import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import prisma from "./prismaClient.js";
 import { generateShortUUID } from "../utils/generateUUID.js";
 import { createDefaultSetupForTenant } from "../modules/auth/tenantSetup.js";
-import { sendGoogleSignupEmail } from "../services/emailService.js";
+import { sendGoogleSignupEmail } from "../services/emails/emailService.js";
 
 // ==================================================
 // ✅ GOOGLE LOGIN STRATEGY

@@ -195,6 +195,7 @@ export const loginController = async (req, res, next) => {
         user: result.user,
         tenant: result.tenant,
         default_branch_uuid: result.default_branch_uuid,
+        subscription: result.subscription,
       },
       200
     );

@@ -1,5 +1,39 @@
 import { Country, State } from "country-state-city";
 import getSymbolFromCurrency from "currency-symbol-map";
+import { getExampleNumber, parsePhoneNumber } from "libphonenumber-js";
+import examples from "libphonenumber-js/mobile/examples";
+
+// Helper function to get phone number length constraints
+const getPhoneNumberLengths = (countryCode) => {
+  try {
+    // Get example mobile number for the country
+    const exampleNumber = getExampleNumber(countryCode, examples);
+
+    if (!exampleNumber) {
+      return { minLength: null, maxLength: null, callingCode: null };
+    }
+
+    const nationalNumber = exampleNumber.nationalNumber;
+    const callingCode = exampleNumber.countryCallingCode;
+
+    // Parse to get accurate information
+    const parsed = parsePhoneNumber(`+${callingCode}${nationalNumber}`);
+
+    return {
+      minLength: nationalNumber.length,
+      maxLength: nationalNumber.length,
+      callingCode: `+${callingCode}`,
+      exampleNumber: nationalNumber,
+      format: parsed.formatInternational(),
+    };
+  } catch (error) {
+    console.error(
+      `Error getting phone lengths for ${countryCode}:`,
+      error.message
+    );
+    return { minLength: null, maxLength: null, callingCode: null };
+  }
+};
 
 export const getCountries = (req, res, next) => {
   try {
@@ -7,6 +41,7 @@ export const getCountries = (req, res, next) => {
       ...c,
       flagUrl: `https://flagcdn.com/${c.isoCode.toLowerCase()}.svg`,
       currencySymbol: getSymbolFromCurrency(c.currency) || null,
+      phoneNumber: getPhoneNumberLengths(c.isoCode),
     }));
 
     res.status(200).json({
@@ -50,6 +85,7 @@ export const getCountryDetails = (req, res, next) => {
         ...country,
         flagUrl: `https://flagcdn.com/${countryCode.toLowerCase()}.svg`,
         currencySymbol: getSymbolFromCurrency(country.currency) || null,
+        phoneNumber: getPhoneNumberLengths(countryCode),
       },
     });
   } catch (error) {
@@ -77,6 +113,7 @@ export const getCountryStateDetails = (req, res, next) => {
         ...country,
         flagUrl: `https://flagcdn.com/${countryCode.toLowerCase()}.svg`,
         currencySymbol: getSymbolFromCurrency(country.currency) || null,
+        phoneNumber: getPhoneNumberLengths(countryCode),
         states,
       },
     });

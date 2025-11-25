@@ -352,6 +352,7 @@ export async function getTenantUsersRepo(
     user_name: u.user_name,
     user_email: u.user_email,
     user_country_code: u.user_country_code,
+    user_country_code: u.user_country_code,
     user_phone: u.user_phone,
     is_owner: u.is_owner,
     created_on: u.created_on,
@@ -649,6 +650,7 @@ export async function updateTenantUserRepo({
   userUuid,
   user_name,
   user_email,
+  user_country_code,
   user_phone,
   role_assignments = undefined,
 }) {
@@ -734,6 +736,7 @@ export async function updateTenantUserRepo({
       data: {
         user_name,
         user_email,
+        user_country_code,
         user_phone,
         modified_on: new Date(),
       },

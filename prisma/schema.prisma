@@ -402,6 +402,7 @@ model tbl_branches {
   country          String?           @db.VarChar(100)
   state            String?           @db.VarChar(100)
   postal_code      String?           @db.VarChar(20)
+  phone_code       String?           @db.VarChar(10)
   phone            String?           @db.VarChar(20)
   status           Boolean?          @default(true)
   created_on       DateTime?         @default(now()) @db.Timestamp(0)

@@ -1059,7 +1059,7 @@ export async function getUserMenuRepo(userUuid, branchUuid) {
 
   // 7️⃣ Filter menus user can access (must have read permission)
   const accessibleMenus = [...mergedPermissions.values()]
-    .filter((m) => m.permissions.read)
+    // .filter((m) => m.permissions.read)
     .map((m) => ({ ...m.menu, permissions: m.permissions }))
     .sort((a, b) => a.sort_order - b.sort_order);
 

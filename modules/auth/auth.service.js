@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import prisma from "../../config/prismaClient.js";
 import { generateShortUUID } from "../../utils/generateUUID.js";
 import { generateToken } from "../../utils/generateToken.js";
@@ -5,6 +6,8 @@ import { comparePassword, hashPassword } from "../../utils/hashPassword.js";
 import { createDefaultSetupForTenant } from "./tenantSetup.js";
 import {
   sendMagicLinkEmail,
+  sendPasswordResetEmail,
+  sendPasswordResetSuccessEmail,
   sendWelcomeEmail,
 } from "../../services/emails/emailService.js";
 import { sanitizeResponse } from "../../utils/sanitizeResponse.js";
@@ -496,3 +499,184 @@ export async function updateUserPassword(
 
   return true;
 }
+
+/**
+ * Initiate Forgot Password
+ */
+
+// Generate a secure random token
+const generateResetToken = () => {
+  return crypto.randomBytes(32).toString("hex");
+};
+
+// Hash token before storing
+const hashToken = (token) => {
+  return crypto.createHash("sha256").update(token).digest("hex");
+};
+
+// Service: Request password reset
+export const requestPasswordReset = async (
+  email,
+  ipAddress = null,
+  userAgent = null
+) => {
+  try {
+    // 1. Check if user exists
+    const user = await prisma.tbl_tent_users1.findUnique({
+      where: { user_email: email },
+      select: {
+        user_id: true,
+        user_name: true,
+        user_email: true,
+      },
+    });
+
+    // IMPORTANT: Always return success (prevent email enumeration)
+    if (!user) {
+      return {
+        success: true,
+        message: "If the email exists, a reset link has been sent.",
+      };
+    }
+
+    // 2. Generate token
+    const resetToken = generateResetToken();
+    const hashedToken = hashToken(resetToken);
+
+    // 3. Use transaction for atomicity
+    await prisma.$transaction(async (tx) => {
+      // Invalidate existing password reset tokens
+      await tx.tbl_tokens.updateMany({
+        where: {
+          user_id: user.user_id,
+          token_type: "PASSWORD_RESET",
+          used_at: null,
+        },
+        data: {
+          used_at: new Date(),
+        },
+      });
+
+      // Create new token (expires in 1 hour)
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+      await tx.tbl_tokens.create({
+        data: {
+          token: hashedToken,
+          token_type: "PASSWORD_RESET",
+          user_id: user.user_id,
+          expires_at: expiresAt,
+          ip_address: ipAddress,
+          user_agent: userAgent,
+        },
+      });
+    });
+
+    // 4. Send email
+    await sendPasswordResetEmail(user, resetToken);
+
+    return {
+      success: true,
+      message: "If the email exists, a reset link has been sent.",
+    };
+  } catch (error) {
+    console.error("Password reset request error:", error);
+    throw new Error("Failed to process password reset request");
+  }
+};
+
+// Service: Verify reset token
+export const verifyResetToken = async (token) => {
+  try {
+    const hashedToken = hashToken(token);
+    console.log("hashedToken", hashedToken);
+    const tokenData = await prisma.tbl_tokens.findUnique({
+      where: { token: hashedToken },
+      include: {
+        tbl_tent_users1: {
+          select: {
+            user_id: true,
+            user_email: true,
+            user_name: true,
+          },
+        },
+      },
+    });
+
+    if (!tokenData) {
+      return { valid: false, error: "Invalid or expired reset token" };
+    }
+
+    // Check if already used
+    if (tokenData.used_at) {
+      return { valid: false, error: "This reset link has already been used" };
+    }
+
+    // Check if expired
+    if (new Date() > new Date(tokenData.expires_at)) {
+      return { valid: false, error: "This reset link has expired" };
+    }
+
+    return {
+      valid: true,
+      userId: tokenData.tbl_tent_users1.user_id,
+      email: tokenData.tbl_tent_users1.user_email,
+      name: tokenData.tbl_tent_users1.user_name,
+    };
+  } catch (error) {
+    console.error("Token verification error:", error);
+    throw new Error("Failed to verify reset token");
+  }
+};
+
+// Service: Reset password
+export const resetPassword = async (token, newPassword) => {
+  try {
+    // 1. Verify token
+    const verification = await verifyResetToken(token);
+
+    if (!verification.valid) {
+      return { success: false, error: verification.error };
+    }
+
+    // 2. Hash new password
+    const hashedPassword = await hashPassword(newPassword);
+
+    // 3. Update password and mark token as used
+    await prisma.$transaction(async (tx) => {
+      // Update password
+      await tx.tbl_tent_users1.update({
+        where: { user_id: verification.userId },
+        data: { password: hashedPassword },
+      });
+
+      // Mark token as used
+      const hashedToken = hashToken(token);
+      await tx.tbl_tokens.update({
+        where: { token: hashedToken },
+        data: { used_at: new Date() },
+      });
+
+      // Invalidate all other password reset tokens
+      await tx.tbl_tokens.updateMany({
+        where: {
+          user_id: verification.userId,
+          token_type: "PASSWORD_RESET",
+          used_at: null,
+        },
+        data: { used_at: new Date() },
+      });
+    });
+
+    // 4. Send confirmation email
+    await sendPasswordResetSuccessEmail({
+      user_email: verification.email,
+      user_name: verification.name,
+    });
+
+    return { success: true, message: "Password has been reset successfully" };
+  } catch (error) {
+    console.error("Password reset error:", error);
+    throw new Error("Failed to reset password");
+  }
+};

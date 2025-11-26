@@ -366,6 +366,7 @@ model tbl_tent_users1 {
   tbl_roles_tbl_roles_updated_byTotbl_tent_users1            tbl_roles[]       @relation("tbl_roles_updated_byTotbl_tent_users1")
   tbl_branches                                               tbl_branches?     @relation(fields: [branch_id], references: [branch_id], onUpdate: Restrict, map: "fk_users_branch")
   tbl_tent_master1                                           tbl_tent_master1? @relation(fields: [tent_id], references: [tent_id], onDelete: Cascade, onUpdate: Restrict, map: "tbl_tent_users1_ibfk_1")
+  tbl_tokens                                                 tbl_tokens[]
   tbl_user_roles                                             tbl_user_roles[]
   tbl_user_roles_tbl_user_roles_assigned_byTotbl_tent_users1 tbl_user_roles[]  @relation("tbl_user_roles_assigned_byTotbl_tent_users1")
 
@@ -414,6 +415,26 @@ model tbl_branches {
   @@index([tent_id], map: "tent_id")
 }
 
+model tbl_tokens {
+  token_id        BigInt                @id @default(autoincrement())
+  token           String                @unique(map: "token") @db.VarChar(255)
+  token_type      tbl_tokens_token_type
+  user_id         BigInt
+  expires_at      DateTime              @db.DateTime(0)
+  used_at         DateTime?             @db.DateTime(0)
+  ip_address      String?               @db.VarChar(45)
+  user_agent      String?               @db.VarChar(255)
+  metadata        String?               @db.LongText
+  created_on      DateTime?             @default(now()) @db.Timestamp(0)
+  modified_on     DateTime?             @default(now()) @db.Timestamp(0)
+  tbl_tent_users1 tbl_tent_users1       @relation(fields: [user_id], references: [user_id], onDelete: Cascade, map: "fk_tokens_user")
+
+  @@index([expires_at], map: "idx_expires_at")
+  @@index([token_type], map: "idx_token_type")
+  @@index([used_at], map: "idx_used_at")
+  @@index([user_id, token_type], map: "idx_user_token_type")
+}
+
 enum tbl_tent_group_group_status {
   active
   inactive
@@ -454,4 +475,12 @@ enum tbl_cust_master_cust_status {
 enum tbl_tent_master_tent_status {
   active
   inactive
+}
+
+enum tbl_tokens_token_type {
+  PASSWORD_RESET
+  EMAIL_VERIFICATION
+  MAGIC_LINK
+  FA                 @map("2FA")
+  API_KEY
 }

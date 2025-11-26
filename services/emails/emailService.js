@@ -43,7 +43,7 @@ export async function sendMagicLinkEmail(user) {
 export async function sendWelcomeEmail(user, tenant) {
   const clientUrl = process.env.CLIENT_URL;
   const currentYear = new Date().getFullYear();
-  const dashboardUrl = `${clientUrl}/dashboard`;
+  const dashboardUrl = `${clientUrl}/accesscheck`;
 
   let html = await loadTemplate("welcomeEmail.html");
 
@@ -70,7 +70,7 @@ export async function sendWelcomeEmail(user, tenant) {
 export async function sendGoogleSignupEmail(user) {
   const clientUrl = process.env.CLIENT_URL;
   const currentYear = new Date().getFullYear();
-  const dashboardUrl = `${clientUrl}/dashboard`;
+  const dashboardUrl = `${clientUrl}/accesscheck`;
 
   let html = await loadTemplate("googleSignupEmail.html");
 
@@ -88,4 +88,53 @@ export async function sendGoogleSignupEmail(user) {
   });
 
   console.log("✅ Google signup welcome email sent to:", user.user_email);
+}
+
+// Email helper: Send password reset email
+export async function sendPasswordResetEmail(user, resetToken) {
+  const clientUrl = process.env.CLIENT_URL;
+  const currentYear = new Date().getFullYear();
+  const resetUrl = `${clientUrl}/reset-password?token=${resetToken}`;
+
+  let html = await loadTemplate("passwordResetEmail.html");
+
+  html = html
+    .replace(/{{user_name}}/g, user.user_name)
+    .replace(/{{reset_url}}/g, resetUrl)
+    .replace(/{{client_url}}/g, clientUrl)
+    .replace(/{{current_year}}/g, currentYear);
+
+  await sendEmail({
+    to: user.user_email,
+    subject: "Password Reset Request – Quanta",
+    html,
+  });
+
+  console.log("✅ Password reset email sent to:", user.user_email);
+}
+
+// Email helper: Send password reset success email
+export async function sendPasswordResetSuccessEmail(user) {
+  const clientUrl = process.env.CLIENT_URL;
+  const currentYear = new Date().getFullYear();
+  const loginUrl = `${clientUrl}/login`;
+  const resetTime = new Date().toLocaleString("en-US", {
+    dateStyle: "full",
+    timeStyle: "short",
+  });
+
+  let html = await loadTemplate("passwordResetSuccessEmail.html");
+
+  html = html
+    .replace(/{{user_name}}/g, user.user_name)
+    .replace(/{{login_url}}/g, loginUrl)
+    .replace(/{{reset_time}}/g, resetTime)
+    .replace(/{{client_url}}/g, clientUrl)
+    .replace(/{{current_year}}/g, currentYear);
+  await sendEmail({
+    to: user.user_email,
+    subject: "Password Reset Successful – Quanta",
+    html,
+  });
+  console.log("✅ Password reset success email sent to:", user.user_email);
 }

@@ -5,6 +5,9 @@ import {
   registerUser,
   resendVerificationService,
   updateUserPassword,
+  requestPasswordReset,
+  verifyResetToken,
+  resetPassword,
 } from "./auth.service.js";
 import { successResponse, errorResponse } from "../../utils/response.js";
 import prisma from "../../config/prismaClient.js";
@@ -279,5 +282,121 @@ export const changePasswordController = async (req, res, next) => {
   } catch (error) {
     console.error("Change password error:", error);
     return errorResponse(res, error.message || "Password change failed", 400);
+  }
+};
+
+// POST /api/auth/forgot-password
+export const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    // Validate email
+    if (!email || !email.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Email is required",
+      });
+    }
+
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid email format",
+      });
+    }
+
+    const result = await requestPasswordReset(email.toLowerCase().trim());
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("Forgot password error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred. Please try again later.",
+    });
+  }
+};
+
+// GET /api/auth/verify-reset-token?token=xxx
+export const verifyResetPasswordToken = async (req, res) => {
+  try {
+    const { token } = req.query;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: "Token is required",
+      });
+    }
+
+    const result = await verifyResetToken(token);
+
+    if (!result.valid) {
+      return res.status(400).json({
+        success: false,
+        message: result.error,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Token is valid",
+      data: {
+        name: result.name,
+        email: result.email, // Optional: return email for display
+      },
+    });
+  } catch (error) {
+    console.error("Verify token error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred. Please try again later.",
+    });
+  }
+};
+
+// POST /api/auth/reset-password
+export const resetUserPassword = async (req, res) => {
+  try {
+    const { token, password, confirmPassword } = req.body;
+
+    // Validation
+    if (!token || !password || !confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "All fields are required",
+      });
+    }
+
+    if (password !== confirmPassword) {
+      return res.status(400).json({
+        success: false,
+        message: "Passwords do not match",
+      });
+    }
+
+    // Password strength validation
+    if (password.length < 6) {
+      return res.status(400).json({
+        success: false,
+        message: "Password must be at least 6 characters long",
+      });
+    }
+
+    const result = await resetPassword(token, password);
+
+    if (!result.success) {
+      return res.status(400).json(result);
+    }
+
+    return res.status(200).json(result);
+  } catch (error) {
+    console.error("Reset password error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred. Please try again later.",
+    });
   }
 };

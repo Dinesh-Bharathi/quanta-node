@@ -8,6 +8,9 @@ import {
   verifyEmailController,
   registerTenantController,
   resendVerificationController,
+  forgotPassword,
+  verifyResetPasswordToken,
+  resetUserPassword,
 } from "./auth.controller.js";
 import { verifyToken } from "../../middlewares/authMiddleware.js";
 import { cryptoMiddleware } from "../../middlewares/cryptoMiddleware.js";
@@ -67,7 +70,7 @@ router.get(
       });
 
       // Redirect to dashboard
-      res.redirect(`${process.env.CLIENT_URL}/dashboard`);
+      res.redirect(`${process.env.CLIENT_URL}/accesscheck`);
     } catch (error) {
       console.error("OAuth login callback error:", error);
       res.redirect(`${process.env.CLIENT_URL}/login?error=server_error`);
@@ -95,7 +98,7 @@ router.get(
 
       // If the user has a tenant → direct login flow
       if (tent_uuid) {
-        return res.redirect(`${process.env.CLIENT_URL}/dashboard`);
+        return res.redirect(`${process.env.CLIENT_URL}/accesscheck`);
       }
 
       // If no tenant → onboarding
@@ -139,5 +142,9 @@ router.post(
   cryptoMiddleware,
   changePasswordController
 );
+
+router.post("/forgot-password", forgotPassword);
+router.get("/verify-reset-token", verifyResetPasswordToken);
+router.post("/reset-password", resetUserPassword);
 
 export default router;

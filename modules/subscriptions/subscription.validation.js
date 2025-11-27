@@ -40,7 +40,7 @@ export async function createTenantSubscriptionRepo({
   paymentStatus = "PENDING",
   isAutoRenew = true,
 }) {
-  const tenant = await prisma.tbl_tent_master1.findUnique({
+  const tenant = await prisma.tbl_tent_master.findUnique({
     where: { tent_uuid: tentUuid },
     select: { tent_id: true },
   });
@@ -94,7 +94,7 @@ export async function updateSubscriptionPaymentRepo(subscriptionUuid, status) {
 export async function getTenantActiveSubscriptionRepo(tentUuid) {
   return prisma.tbl_tenant_subscriptions.findFirst({
     where: {
-      tbl_tent_master1: { tent_uuid: tentUuid },
+      tbl_tent_master: { tent_uuid: tentUuid },
       is_active: true,
     },
     include: {

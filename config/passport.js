@@ -27,10 +27,10 @@ passport.use(
         }
 
         // 🔍 Find user by email with roles and branches
-        const user = await prisma.tbl_tent_users1.findFirst({
+        const user = await prisma.tbl_tent_users.findFirst({
           where: { user_email: email },
           include: {
-            tbl_tent_master1: true,
+            tbl_tent_master: true,
             tbl_user_roles: {
               include: {
                 tbl_roles: true,
@@ -55,7 +55,7 @@ passport.use(
           user_uuid: user.user_uuid,
           user_name: user.user_name,
           user_email: user.user_email,
-          tent_uuid: user.tbl_tent_master1?.tent_uuid,
+          tent_uuid: user.tbl_tent_master?.tent_uuid,
         };
 
         return done(null, userData);
@@ -92,9 +92,9 @@ passport.use(
 
 //       try {
 //         // 🔍 Check if user already exists
-//         const existingUser = await prisma.tbl_tent_users1.findFirst({
+//         const existingUser = await prisma.tbl_tent_users.findFirst({
 //           where: { user_email: email },
-//           include: { tbl_tent_master1: true },
+//           include: { tbl_tent_master: true },
 //         });
 
 //         if (existingUser) {
@@ -113,7 +113,7 @@ passport.use(
 //             ? `${name}'s Account`
 //             : email.split("@")[0] + "'s Account";
 
-//           const newTenant = await tx.tbl_tent_master1.create({
+//           const newTenant = await tx.tbl_tent_master.create({
 //             data: {
 //               tent_uuid,
 //               tent_name: defaultTentName, // ✅ Required field
@@ -125,7 +125,7 @@ passport.use(
 
 //           // 🔹 2. Create tenant owner user
 //           const user_uuid = generateShortUUID();
-//           const newUser = await tx.tbl_tent_users1.create({
+//           const newUser = await tx.tbl_tent_users.create({
 //             data: {
 //               tent_id: newTenant.tent_id,
 //               user_uuid,
@@ -186,10 +186,10 @@ passport.use(
         }
 
         // 1️⃣ Check if user already exists
-        const existingUser = await prisma.tbl_tent_users1.findFirst({
+        const existingUser = await prisma.tbl_tent_users.findFirst({
           where: { user_email: email },
           include: {
-            tbl_tent_master1: true, // Check if tenant exists
+            tbl_tent_master: true, // Check if tenant exists
           },
         });
 
@@ -199,7 +199,7 @@ passport.use(
             user_uuid: existingUser.user_uuid,
             user_email: existingUser.user_email,
             user_name: existingUser.user_name,
-            tent_uuid: existingUser.tbl_tent_master1?.tent_uuid || null,
+            tent_uuid: existingUser.tbl_tent_master?.tent_uuid || null,
             isNewUser: false, // Flag to indicate existing user
           });
         }
@@ -207,7 +207,7 @@ passport.use(
         // 2️⃣ Create a new user WITHOUT tenant
         const user_uuid = generateShortUUID();
 
-        const newUser = await prisma.tbl_tent_users1.create({
+        const newUser = await prisma.tbl_tent_users.create({
           data: {
             user_uuid,
             user_name: name,

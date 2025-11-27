@@ -1,74 +1,5 @@
 import prisma from "../../config/prismaClient.js";
 import { generateShortUUID } from "../../utils/generateUUID.js";
-
-// ─────────────────────────────────────────────
-// Tenant-related operations
-// ─────────────────────────────────────────────
-export async function findTenantByEmail(email) {
-  return prisma.tbl_tent_master1.findUnique({
-    where: { tent_email: email },
-  });
-}
-
-export async function createTenant(tx, data) {
-  return tx.tbl_tent_master1.create({ data });
-}
-
-// ─────────────────────────────────────────────
-// User-related operations
-// ─────────────────────────────────────────────
-export async function findUserByEmail(email) {
-  return prisma.tbl_tent_users1.findFirst({
-    where: { user_email: email },
-    include: { tbl_tent_master1: true },
-  });
-}
-
-export async function findUserByUuid(uuid) {
-  return prisma.tbl_tent_users1.findUnique({
-    where: { user_uuid: uuid },
-    include: {
-      tbl_tent_master1: true,
-      tbl_user_roles: { include: { tbl_roles: true } },
-    },
-  });
-}
-
-export async function createTenantUser(tx, data) {
-  return tx.tbl_tent_users1.create({ data });
-}
-
-export async function updateUserPasswordByUuid(uuid, hashedPassword) {
-  return prisma.tbl_tent_users1.update({
-    where: { user_uuid: uuid },
-    data: { password: hashedPassword, modified_on: new Date() },
-  });
-}
-
-// ─────────────────────────────────────────────
-// Subscription-related operations
-// ─────────────────────────────────────────────
-export async function findFreeTrialPlan() {
-  return prisma.tbl_subscription_plans.findFirst({
-    where: { plan_name: "Free Trial" },
-  });
-}
-
-export async function createTenantSubscription(tx, data) {
-  return tx.tbl_tenant_subscriptions.create({ data });
-}
-
-// ─────────────────────────────────────────────
-// Role-related operations
-// ─────────────────────────────────────────────
-export async function createRole(tx, data) {
-  return tx.tbl_roles.create({ data });
-}
-
-export async function createUserRole(tx, data) {
-  return tx.tbl_user_roles.create({ data });
-}
-
 export async function grantFullPermissions(tx, role_id) {
   const menus = await tx.tbl_menus.findMany({ select: { menu_id: true } });
 
@@ -105,7 +36,7 @@ export async function createTenantCore(prisma, user, data, planUuid) {
   return await prisma.$transaction(
     async (tx) => {
       // 1. Create Tenant
-      const tenant = await tx.tbl_tent_master1.create({
+      const tenant = await tx.tbl_tent_master.create({
         data: {
           tent_uuid,
           tent_name,
@@ -139,7 +70,7 @@ export async function createTenantCore(prisma, user, data, planUuid) {
       });
 
       // 3. Link User to Tenant
-      const updatedUser = await tx.tbl_tent_users1.update({
+      const updatedUser = await tx.tbl_tent_users.update({
         where: { user_uuid: user.user_uuid },
         data: {
           tent_id: tenant.tent_id,

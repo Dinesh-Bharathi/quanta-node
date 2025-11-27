@@ -4,10 +4,10 @@ import prisma from "../../config/prismaClient.js";
  * Fetch user profile details by UUID
  */
 export async function getUserProfileRepo(userUuid) {
-  const user = await prisma.tbl_tent_users1.findUnique({
+  const user = await prisma.tbl_tent_users.findUnique({
     where: { user_uuid: userUuid },
     include: {
-      tbl_tent_master1: {
+      tbl_tent_master: {
         select: {
           tent_id: true,
           tent_uuid: true,
@@ -31,16 +31,16 @@ export async function getUserProfileRepo(userUuid) {
     user_country_code: user.user_country_code,
     user_phone: user.user_phone,
     is_owner: Boolean(user.is_owner),
-    tent: user.tbl_tent_master1
+    tent: user.tbl_tent_master
       ? {
-          tent_id: user.tbl_tent_master1.tent_id,
-          tent_uuid: user.tbl_tent_master1.tent_uuid,
-          tent_name: user.tbl_tent_master1.tent_name,
-          tent_email: user.tbl_tent_master1.tent_email,
-          tent_logo: user.tbl_tent_master1.tent_logo,
-          tent_country: user.tbl_tent_master1.tent_country,
-          tent_state: user.tbl_tent_master1.tent_state,
-          tent_status: user.tbl_tent_master1.tent_status,
+          tent_id: user.tbl_tent_master.tent_id,
+          tent_uuid: user.tbl_tent_master.tent_uuid,
+          tent_name: user.tbl_tent_master.tent_name,
+          tent_email: user.tbl_tent_master.tent_email,
+          tent_logo: user.tbl_tent_master.tent_logo,
+          tent_country: user.tbl_tent_master.tent_country,
+          tent_state: user.tbl_tent_master.tent_state,
+          tent_status: user.tbl_tent_master.tent_status,
         }
       : null,
   };
@@ -52,7 +52,7 @@ export async function getUserProfileRepo(userUuid) {
 export async function updateUserProfileRepo(userUuid, data) {
   const { user_name, user_email, user_phone } = data;
 
-  const updatedUser = await prisma.tbl_tent_users1.update({
+  const updatedUser = await prisma.tbl_tent_users.update({
     where: { user_uuid: userUuid },
     data: {
       user_name,
@@ -61,7 +61,7 @@ export async function updateUserProfileRepo(userUuid, data) {
       modified_on: new Date(),
     },
     include: {
-      tbl_tent_master1: {
+      tbl_tent_master: {
         select: {
           tent_id: true,
           tent_uuid: true,
@@ -83,7 +83,7 @@ export async function updateUserProfileRepo(userUuid, data) {
     user_country_code: updatedUser.user_country_code,
     user_phone: updatedUser.user_phone,
     is_owner: Boolean(updatedUser.is_owner),
-    tent: updatedUser.tbl_tent_master1,
+    tent: updatedUser.tbl_tent_master,
   };
 }
 
@@ -91,7 +91,7 @@ export async function updateUserProfileRepo(userUuid, data) {
  * Fetch tenant (organization) details by UUID
  */
 export async function getTentDetailsRepo(tentUuid) {
-  const tent = await prisma.tbl_tent_master1.findUnique({
+  const tent = await prisma.tbl_tent_master.findUnique({
     where: { tent_uuid: tentUuid },
     select: {
       tent_name: true,

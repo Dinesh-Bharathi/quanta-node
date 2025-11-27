@@ -108,7 +108,7 @@ export const verifyEmailController = async (req, res) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     // Update user verification status
-    const user = await prisma.tbl_tent_users1.update({
+    const user = await prisma.tbl_tent_users.update({
       where: { user_uuid: decoded.user_uuid },
       data: { is_email_verified: true },
       select: {

@@ -8,7 +8,7 @@ import { sanitizeResponse } from "../../utils/sanitizeResponse.js";
  * List branches for a tenant
  */
 export async function listBranchesRepo(tentUuid) {
-  const tenant = await prisma.tbl_tent_master1.findUnique({
+  const tenant = await prisma.tbl_tent_master.findUnique({
     where: { tent_uuid: tentUuid },
     select: { tent_id: true },
   });
@@ -54,7 +54,7 @@ export async function createBranchRepo({
   postal_code,
   is_hq = false,
 }) {
-  const tenant = await prisma.tbl_tent_master1.findUnique({
+  const tenant = await prisma.tbl_tent_master.findUnique({
     where: { tent_uuid: tentUuid },
     select: { tent_id: true },
   });
@@ -99,7 +99,7 @@ export async function createBranchRepo({
  * Get branch details
  */
 export async function getBranchDetailsRepo({ tentUuid, branchUuid }) {
-  const tenant = await prisma.tbl_tent_master1.findUnique({
+  const tenant = await prisma.tbl_tent_master.findUnique({
     where: { tent_uuid: tentUuid },
     select: { tent_id: true },
   });
@@ -136,7 +136,7 @@ export async function getBranchDetailsRepo({ tentUuid, branchUuid }) {
  * Update branch
  */
 export async function updateBranchRepo({ tentUuid, branchUuid, updates }) {
-  const tenant = await prisma.tbl_tent_master1.findUnique({
+  const tenant = await prisma.tbl_tent_master.findUnique({
     where: { tent_uuid: tentUuid },
     select: { tent_id: true },
   });
@@ -174,7 +174,7 @@ export async function updateBranchRepo({ tentUuid, branchUuid, updates }) {
  * Soft-delete branch (status = false)
  */
 export async function deleteBranchRepo({ tentUuid, branchUuid }) {
-  const tenant = await prisma.tbl_tent_master1.findUnique({
+  const tenant = await prisma.tbl_tent_master.findUnique({
     where: { tent_uuid: tentUuid },
     select: { tent_id: true },
   });
@@ -200,7 +200,7 @@ export async function deleteBranchRepo({ tentUuid, branchUuid }) {
  * Get users for a branch
  */
 export async function getBranchUsersRepo({ tentUuid, branchUuid }) {
-  const tenant = await prisma.tbl_tent_master1.findUnique({
+  const tenant = await prisma.tbl_tent_master.findUnique({
     where: { tent_uuid: tentUuid },
     select: { tent_id: true },
   });
@@ -216,7 +216,7 @@ export async function getBranchUsersRepo({ tentUuid, branchUuid }) {
   });
   if (!branch) throw new Error("Branch not found");
 
-  const users = await prisma.tbl_tent_users1.findMany({
+  const users = await prisma.tbl_tent_users.findMany({
     where: {
       tent_id: tenant.tent_id, // user must belong to same tenant
       branch_id: branch.branch_id, // and specifically to this branch
@@ -253,7 +253,7 @@ export async function createBranchUserRepo({
   role_uuid = null,
   is_owner = false,
 }) {
-  const tenant = await prisma.tbl_tent_master1.findUnique({
+  const tenant = await prisma.tbl_tent_master.findUnique({
     where: { tent_uuid: tentUuid },
     select: { tent_id: true },
   });
@@ -270,7 +270,7 @@ export async function createBranchUserRepo({
   if (!branch) throw new Error("Branch not found");
 
   // check email not already used in tenant
-  const existing = await prisma.tbl_tent_users1.findFirst({
+  const existing = await prisma.tbl_tent_users.findFirst({
     where: { user_email, tent_id: tenant.tent_id },
   });
   if (existing) throw new Error("Email already registered for this tenant");
@@ -278,7 +278,7 @@ export async function createBranchUserRepo({
   const user_uuid = generateShortUUID();
   const hashed = await hashPassword(password);
 
-  const user = await prisma.tbl_tent_users1.create({
+  const user = await prisma.tbl_tent_users.create({
     data: {
       tent_id: tenant.tent_id, // correct: tenant id here
       branch_id: branch.branch_id, // branch assignment
@@ -336,7 +336,7 @@ export async function assignUserToBranchRepo({ userUuid, branchUuid }) {
   if (!branch) throw new Error("Branch not found");
 
   // find user
-  const user = await prisma.tbl_tent_users1.findUnique({
+  const user = await prisma.tbl_tent_users.findUnique({
     where: { user_uuid: userUuid },
     select: { user_id: true, tent_id: true },
   });
@@ -347,7 +347,7 @@ export async function assignUserToBranchRepo({ userUuid, branchUuid }) {
     throw new Error("User and branch belong to different tenants");
   }
 
-  const updated = await prisma.tbl_tent_users1.update({
+  const updated = await prisma.tbl_tent_users.update({
     where: { user_uuid: userUuid },
     data: { branch_id: branch.branch_id, modified_on: new Date() },
     select: { user_uuid: true, branch_id: true },

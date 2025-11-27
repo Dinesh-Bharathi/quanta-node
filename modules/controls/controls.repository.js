@@ -9,7 +9,7 @@ import { sanitizeResponse } from "../../utils/sanitizeResponse.js";
  * Get all roles for a tenant
  */
 export async function getTenantRolesRepo({ tentUuid }) {
-  const tenant = await prisma.tbl_tent_master1.findUnique({
+  const tenant = await prisma.tbl_tent_master.findUnique({
     where: { tent_uuid: tentUuid },
     select: { tent_id: true },
   });
@@ -18,10 +18,10 @@ export async function getTenantRolesRepo({ tentUuid }) {
   const roles = await prisma.tbl_roles.findMany({
     where: { tent_id: tenant.tent_id },
     include: {
-      tbl_tent_users1_tbl_roles_created_byTotbl_tent_users1: {
+      tbl_tent_users_tbl_roles_created_byTotbl_tent_users: {
         select: { user_name: true },
       },
-      tbl_tent_users1_tbl_roles_updated_byTotbl_tent_users1: {
+      tbl_tent_users_tbl_roles_updated_byTotbl_tent_users: {
         select: { user_name: true },
       },
       _count: {
@@ -39,10 +39,10 @@ export async function getTenantRolesRepo({ tentUuid }) {
     is_active: role.is_active,
     assigned_users_count: role._count.tbl_user_roles,
     created_by:
-      role.tbl_tent_users1_tbl_roles_created_byTotbl_tent_users1?.user_name ||
+      role.tbl_tent_users_tbl_roles_created_byTotbl_tent_users?.user_name ||
       null,
     updated_by:
-      role.tbl_tent_users1_tbl_roles_updated_byTotbl_tent_users1?.user_name ||
+      role.tbl_tent_users_tbl_roles_updated_byTotbl_tent_users?.user_name ||
       null,
     created_at: role.created_at,
     updated_at: role.updated_at,
@@ -96,7 +96,7 @@ export async function createTenantRoleRepo({
   createdBy = null,
 }) {
   // 1️⃣ Validate tenant
-  const tenant = await prisma.tbl_tent_master1.findUnique({
+  const tenant = await prisma.tbl_tent_master.findUnique({
     where: { tent_uuid: tentUuid },
     select: { tent_id: true },
   });
@@ -171,7 +171,7 @@ export async function updateTenantRoleRepo({
   updatedBy = null,
 }) {
   // 1️⃣ Validate tenant
-  const tenant = await prisma.tbl_tent_master1.findUnique({
+  const tenant = await prisma.tbl_tent_master.findUnique({
     where: { tent_uuid: tentUuid },
     select: { tent_id: true },
   });
@@ -253,7 +253,7 @@ export async function updateTenantRoleRepo({
  */
 export async function deleteTenantRoleRepo({ roleUuid, tentUuid }) {
   // 1️⃣ Validate tenant
-  const tenant = await prisma.tbl_tent_master1.findUnique({
+  const tenant = await prisma.tbl_tent_master.findUnique({
     where: { tent_uuid: tentUuid },
     select: { tent_id: true },
   });
@@ -299,7 +299,7 @@ export async function getTenantUsersRepo(
   { all = false, branchUuid = null }
 ) {
   // 1️⃣ Resolve tenant
-  const tenant = await prisma.tbl_tent_master1.findUnique({
+  const tenant = await prisma.tbl_tent_master.findUnique({
     where: { tent_uuid: tentUuid },
     select: { tent_id: true },
   });
@@ -328,7 +328,7 @@ export async function getTenantUsersRepo(
   }
 
   // 3️⃣ Fetch users with role assignments
-  const users = await prisma.tbl_tent_users1.findMany({
+  const users = await prisma.tbl_tent_users.findMany({
     where,
     include: {
       tbl_user_roles: {
@@ -511,14 +511,14 @@ export async function createTenantUserRepo({
   is_owner = false,
 }) {
   // 1️⃣ Validate tenant
-  const tenant = await prisma.tbl_tent_master1.findUnique({
+  const tenant = await prisma.tbl_tent_master.findUnique({
     where: { tent_uuid: tentUuid },
     select: { tent_id: true },
   });
   if (!tenant) throw new Error("Tenant not found");
 
   // 2️⃣ Check email uniqueness
-  const existing = await prisma.tbl_tent_users1.findFirst({
+  const existing = await prisma.tbl_tent_users.findFirst({
     where: { user_email, tent_id: tenant.tent_id },
   });
   if (existing) throw new Error("Email already exists for this tenant");
@@ -583,7 +583,7 @@ export async function createTenantUserRepo({
   const user_uuid = generateShortUUID();
 
   return await prisma.$transaction(async (tx) => {
-    const created = await tx.tbl_tent_users1.create({
+    const created = await tx.tbl_tent_users.create({
       data: {
         tent_id: tenant.tent_id,
         user_uuid,
@@ -609,7 +609,7 @@ export async function createTenantUserRepo({
     }
 
     // Fetch created user with roles
-    const userWithRoles = await tx.tbl_tent_users1.findUnique({
+    const userWithRoles = await tx.tbl_tent_users.findUnique({
       where: { user_id: created.user_id },
       include: {
         tbl_user_roles: {
@@ -654,14 +654,14 @@ export async function updateTenantUserRepo({
   user_phone,
   role_assignments = undefined,
 }) {
-  const user = await prisma.tbl_tent_users1.findUnique({
+  const user = await prisma.tbl_tent_users.findUnique({
     where: { user_uuid: userUuid },
     select: { user_id: true, tent_id: true },
   });
   if (!user) throw new Error("User not found");
 
   if (user_email) {
-    const other = await prisma.tbl_tent_users1.findFirst({
+    const other = await prisma.tbl_tent_users.findFirst({
       where: {
         user_email,
         tent_id: user.tent_id,
@@ -731,7 +731,7 @@ export async function updateTenantUserRepo({
   }
 
   return await prisma.$transaction(async (tx) => {
-    await tx.tbl_tent_users1.update({
+    await tx.tbl_tent_users.update({
       where: { user_uuid: userUuid },
       data: {
         user_name,
@@ -759,7 +759,7 @@ export async function updateTenantUserRepo({
       }
     }
 
-    const updated = await tx.tbl_tent_users1.findUnique({
+    const updated = await tx.tbl_tent_users.findUnique({
       where: { user_id: user.user_id },
       include: {
         tbl_user_roles: {
@@ -796,14 +796,14 @@ export async function updateTenantUserRepo({
  * Delete a user and their associated roles
  */
 export async function deleteTenantUserRepo(userUuid) {
-  const primary = await prisma.tbl_tent_users1.findUnique({
+  const primary = await prisma.tbl_tent_users.findUnique({
     where: { user_uuid: userUuid },
     select: { user_email: true, tent_id: true },
   });
 
   if (!primary) throw new Error("User not found");
 
-  const allUsers = await prisma.tbl_tent_users1.findMany({
+  const allUsers = await prisma.tbl_tent_users.findMany({
     where: {
       user_email: primary.user_email,
       tent_id: primary.tent_id,
@@ -815,7 +815,7 @@ export async function deleteTenantUserRepo(userUuid) {
     where: { user_id: { in: allUsers.map((u) => u.user_id) } },
   });
 
-  await prisma.tbl_tent_users1.deleteMany({
+  await prisma.tbl_tent_users.deleteMany({
     where: {
       user_email: primary.user_email,
       tent_id: primary.tent_id,
@@ -829,7 +829,7 @@ export async function deleteTenantUserRepo(userUuid) {
  * Get a single tenant user by UUID
  */
 export async function getUserByUuidRepo(userUuid) {
-  const user = await prisma.tbl_tent_users1.findUnique({
+  const user = await prisma.tbl_tent_users.findUnique({
     where: { user_uuid: userUuid },
     include: {
       tbl_user_roles: {
@@ -872,7 +872,7 @@ export async function getUserByUuidRepo(userUuid) {
 /** ------------------ TENANT MENU ------------------- **/
 
 export async function getTenantMenuRepo(tentUuid) {
-  const tenant = await prisma.tbl_tent_master1.findUnique({
+  const tenant = await prisma.tbl_tent_master.findUnique({
     where: { tent_uuid: tentUuid },
     include: {
       tbl_tenant_subscriptions: {
@@ -973,7 +973,7 @@ export async function getTenantMenuRepo(tentUuid) {
  */
 export async function getUserMenuRepo(userUuid, branchUuid) {
   // 1️⃣ Validate user
-  const user = await prisma.tbl_tent_users1.findUnique({
+  const user = await prisma.tbl_tent_users.findUnique({
     where: { user_uuid: userUuid },
     select: { user_id: true, tent_id: true },
   });
@@ -1124,7 +1124,7 @@ export async function getUserMenuRepo(userUuid, branchUuid) {
 }
 
 export async function assignUserToBranchRepo({ userUuid, branchUuid }) {
-  const user = await prisma.tbl_tent_users1.findUnique({
+  const user = await prisma.tbl_tent_users.findUnique({
     where: { user_uuid: userUuid },
     select: { user_id: true, tent_id: true },
   });
@@ -1152,7 +1152,7 @@ export async function assignUserToBranchRepo({ userUuid, branchUuid }) {
     }
   }
 
-  await prisma.tbl_tent_users1.update({
+  await prisma.tbl_tent_users.update({
     where: { user_uuid: userUuid },
     data: { branch_id: branch.branch_id, modified_on: new Date() },
   });

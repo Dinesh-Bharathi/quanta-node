@@ -22,7 +22,7 @@ import {
  */
 export async function registerUser({ user_name, user_email, password }) {
   // 1️⃣ Check if user exists
-  const existingUser = await prisma.tbl_tent_users1.findUnique({
+  const existingUser = await prisma.tbl_tent_users.findUnique({
     where: { user_email },
     select: {
       user_id: true,
@@ -53,7 +53,7 @@ export async function registerUser({ user_name, user_email, password }) {
     await sendMagicLinkEmail(existingUser);
 
     // Update timestamp for rate limiting
-    await prisma.tbl_tent_users1.update({
+    await prisma.tbl_tent_users.update({
       where: { user_id: existingUser.user_id },
       data: { modified_on: new Date() },
     });
@@ -96,7 +96,7 @@ export async function registerUser({ user_name, user_email, password }) {
   const user_uuid = generateShortUUID();
   const hashedPwd = await hashPassword(password);
 
-  const newUser = await prisma.tbl_tent_users1.create({
+  const newUser = await prisma.tbl_tent_users.create({
     data: {
       user_uuid,
       user_name,
@@ -134,7 +134,7 @@ export async function registerUser({ user_name, user_email, password }) {
  * Check if verification email was sent recently (rate limiting)
  */
 async function checkRecentVerificationAttempt(userId) {
-  const user = await prisma.tbl_tent_users1.findUnique({
+  const user = await prisma.tbl_tent_users.findUnique({
     where: { user_id: userId },
     select: { modified_on: true },
   });
@@ -151,7 +151,7 @@ async function checkRecentVerificationAttempt(userId) {
  * Resend verification email
  */
 export async function resendVerificationService(user_email) {
-  const user = await prisma.tbl_tent_users1.findUnique({
+  const user = await prisma.tbl_tent_users.findUnique({
     where: { user_email },
     select: {
       user_id: true,
@@ -204,7 +204,7 @@ export async function resendVerificationService(user_email) {
   await sendMagicLinkEmail(user);
 
   // Update timestamp
-  await prisma.tbl_tent_users1.update({
+  await prisma.tbl_tent_users.update({
     where: { user_id: user.user_id },
     data: { modified_on: new Date() },
   });
@@ -220,7 +220,7 @@ export async function resendVerificationService(user_email) {
  */
 export async function registerTenantForUser(userUuid, data) {
   // 1. Validate user
-  const user = await prisma.tbl_tent_users1.findUnique({
+  const user = await prisma.tbl_tent_users.findUnique({
     where: { user_uuid: userUuid },
     select: {
       user_id: true,
@@ -269,10 +269,10 @@ export async function registerTenantForUser(userUuid, data) {
  * Authenticate user by email and password
  */
 export async function authenticateUser({ email, password }) {
-  const user = await prisma.tbl_tent_users1.findFirst({
+  const user = await prisma.tbl_tent_users.findFirst({
     where: { user_email: email },
     include: {
-      tbl_tent_master1: true,
+      tbl_tent_master: true,
       tbl_branches: true,
     },
   });
@@ -290,7 +290,7 @@ export async function authenticateUser({ email, password }) {
   return {
     token,
     user_uuid: user.user_uuid,
-    tent_uuid: user.tbl_tent_master1?.tent_uuid || null,
+    tent_uuid: user.tbl_tent_master?.tent_uuid || null,
     branch_uuid: user.tbl_branches?.branch_uuid || null,
   };
 }
@@ -300,10 +300,10 @@ export async function authenticateUser({ email, password }) {
  */
 export async function getActiveSession(userUuid) {
   // 1️⃣ Fetch user with tenant and role assignments
-  const user = await prisma.tbl_tent_users1.findUnique({
+  const user = await prisma.tbl_tent_users.findUnique({
     where: { user_uuid: userUuid },
     include: {
-      tbl_tent_master1: {
+      tbl_tent_master: {
         include: {
           tbl_tenant_subscriptions: {
             include: {
@@ -418,7 +418,7 @@ export async function getActiveSession(userUuid) {
   }));
 
   const subscription =
-    user.tbl_tent_master1?.tbl_tenant_subscriptions?.[0] || null;
+    user.tbl_tent_master?.tbl_tenant_subscriptions?.[0] || null;
 
   const subscriptionDetails = subscription
     ? {
@@ -451,18 +451,18 @@ export async function getActiveSession(userUuid) {
       roles: rolesSummary,
     },
     tenant: {
-      tent_uuid: user.tbl_tent_master1.tent_uuid,
-      tent_name: user.tbl_tent_master1.tent_name,
-      tent_email: user.tbl_tent_master1.tent_email,
-      tent_phone: user.tbl_tent_master1.tent_phone,
-      tent_logo: user.tbl_tent_master1.tent_logo,
-      tent_address1: user.tbl_tent_master1.tent_address1,
-      tent_address2: user.tbl_tent_master1.tent_address2,
-      tent_state: user.tbl_tent_master1.tent_state,
-      tent_country: user.tbl_tent_master1.tent_country,
-      tent_postalcode: user.tbl_tent_master1.tent_postalcode,
-      tent_registration_number: user.tbl_tent_master1.tent_registration_number,
-      tent_status: user.tbl_tent_master1.tent_status,
+      tent_uuid: user.tbl_tent_master.tent_uuid,
+      tent_name: user.tbl_tent_master.tent_name,
+      tent_email: user.tbl_tent_master.tent_email,
+      tent_phone: user.tbl_tent_master.tent_phone,
+      tent_logo: user.tbl_tent_master.tent_logo,
+      tent_address1: user.tbl_tent_master.tent_address1,
+      tent_address2: user.tbl_tent_master.tent_address2,
+      tent_state: user.tbl_tent_master.tent_state,
+      tent_country: user.tbl_tent_master.tent_country,
+      tent_postalcode: user.tbl_tent_master.tent_postalcode,
+      tent_registration_number: user.tbl_tent_master.tent_registration_number,
+      tent_status: user.tbl_tent_master.tent_status,
     },
     branches: allowedBranches,
     subscription: subscriptionDetails,
@@ -481,7 +481,7 @@ export async function updateUserPassword(
   currentPassword,
   newPassword
 ) {
-  const user = await prisma.tbl_tent_users1.findUnique({
+  const user = await prisma.tbl_tent_users.findUnique({
     where: { user_uuid: userUuid },
   });
 
@@ -492,7 +492,7 @@ export async function updateUserPassword(
 
   const hashedNewPwd = await hashPassword(newPassword);
 
-  await prisma.tbl_tent_users1.update({
+  await prisma.tbl_tent_users.update({
     where: { user_uuid: userUuid },
     data: { password: hashedNewPwd, modified_on: new Date() },
   });
@@ -522,7 +522,7 @@ export const requestPasswordReset = async (
 ) => {
   try {
     // 1. Check if user exists
-    const user = await prisma.tbl_tent_users1.findUnique({
+    const user = await prisma.tbl_tent_users.findUnique({
       where: { user_email: email },
       select: {
         user_id: true,
@@ -593,7 +593,7 @@ export const verifyResetToken = async (token) => {
     const tokenData = await prisma.tbl_tokens.findUnique({
       where: { token: hashedToken },
       include: {
-        tbl_tent_users1: {
+        tbl_tent_users: {
           select: {
             user_id: true,
             user_email: true,
@@ -619,9 +619,9 @@ export const verifyResetToken = async (token) => {
 
     return {
       valid: true,
-      userId: tokenData.tbl_tent_users1.user_id,
-      email: tokenData.tbl_tent_users1.user_email,
-      name: tokenData.tbl_tent_users1.user_name,
+      userId: tokenData.tbl_tent_users.user_id,
+      email: tokenData.tbl_tent_users.user_email,
+      name: tokenData.tbl_tent_users.user_name,
     };
   } catch (error) {
     console.error("Token verification error:", error);
@@ -645,7 +645,7 @@ export const resetPassword = async (token, newPassword) => {
     // 3. Update password and mark token as used
     await prisma.$transaction(async (tx) => {
       // Update password
-      await tx.tbl_tent_users1.update({
+      await tx.tbl_tent_users.update({
         where: { user_id: verification.userId },
         data: { password: hashedPassword },
       });

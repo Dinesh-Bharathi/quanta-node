@@ -67,14 +67,14 @@ export async function checkExpiringSubscriptions() {
           gte: sevenDaysFromNow,
           lte: sevenDaysEnd,
         },
-        tbl_tent_master1: {
+        tbl_tent_master: {
           tent_email: {
             not: null,
           },
         },
       },
       include: {
-        tbl_tent_master1: {
+        tbl_tent_master: {
           select: {
             tent_name: true,
             tent_email: true,
@@ -98,8 +98,8 @@ export async function checkExpiringSubscriptions() {
         tent_id: sub.tent_id,
         end_date: sub.end_date,
         is_auto_renew: sub.is_auto_renew,
-        tent_name: sub.tbl_tent_master1.tent_name,
-        tent_email: sub.tbl_tent_master1.tent_email,
+        tent_name: sub.tbl_tent_master.tent_name,
+        tent_email: sub.tbl_tent_master.tent_email,
         plan_name: sub.tbl_subscription_plans.plan_name,
         price_monthly: sub.tbl_subscription_plans.price_monthly,
         price_yearly: sub.tbl_subscription_plans.price_yearly,
@@ -121,14 +121,14 @@ export async function checkExpiringSubscriptions() {
           gte: threeDaysFromNow,
           lte: threeDaysEnd,
         },
-        tbl_tent_master1: {
+        tbl_tent_master: {
           tent_email: {
             not: null,
           },
         },
       },
       include: {
-        tbl_tent_master1: {
+        tbl_tent_master: {
           select: {
             tent_name: true,
             tent_email: true,
@@ -152,8 +152,8 @@ export async function checkExpiringSubscriptions() {
         tent_id: sub.tent_id,
         end_date: sub.end_date,
         is_auto_renew: sub.is_auto_renew,
-        tent_name: sub.tbl_tent_master1.tent_name,
-        tent_email: sub.tbl_tent_master1.tent_email,
+        tent_name: sub.tbl_tent_master.tent_name,
+        tent_email: sub.tbl_tent_master.tent_email,
         plan_name: sub.tbl_subscription_plans.plan_name,
         price_monthly: sub.tbl_subscription_plans.price_monthly,
         price_yearly: sub.tbl_subscription_plans.price_yearly,
@@ -174,14 +174,14 @@ export async function checkExpiringSubscriptions() {
           gte: oneDayFromNow,
           lte: oneDayEnd,
         },
-        tbl_tent_master1: {
+        tbl_tent_master: {
           tent_email: {
             not: null,
           },
         },
       },
       include: {
-        tbl_tent_master1: {
+        tbl_tent_master: {
           select: {
             tent_name: true,
             tent_email: true,
@@ -205,8 +205,8 @@ export async function checkExpiringSubscriptions() {
         tent_id: sub.tent_id,
         end_date: sub.end_date,
         is_auto_renew: sub.is_auto_renew,
-        tent_name: sub.tbl_tent_master1.tent_name,
-        tent_email: sub.tbl_tent_master1.tent_email,
+        tent_name: sub.tbl_tent_master.tent_name,
+        tent_email: sub.tbl_tent_master.tent_email,
         plan_name: sub.tbl_subscription_plans.plan_name,
         price_monthly: sub.tbl_subscription_plans.price_monthly,
         price_yearly: sub.tbl_subscription_plans.price_yearly,
@@ -246,14 +246,14 @@ export async function processExpiredSubscriptions() {
         end_date: {
           lt: now,
         },
-        tbl_tent_master1: {
+        tbl_tent_master: {
           tent_email: {
             not: null,
           },
         },
       },
       include: {
-        tbl_tent_master1: {
+        tbl_tent_master: {
           select: {
             tent_name: true,
             tent_email: true,
@@ -284,8 +284,8 @@ export async function processExpiredSubscriptions() {
         tent_id: sub.tent_id,
         end_date: sub.end_date,
         is_auto_renew: sub.is_auto_renew,
-        tent_name: sub.tbl_tent_master1.tent_name,
-        tent_email: sub.tbl_tent_master1.tent_email,
+        tent_name: sub.tbl_tent_master.tent_name,
+        tent_email: sub.tbl_tent_master.tent_email,
         plan_name: sub.tbl_subscription_plans.plan_name,
       };
 
@@ -332,14 +332,14 @@ export async function sendFollowUpEmails() {
           gte: day3Date,
           lte: day3End,
         },
-        tbl_tent_master1: {
+        tbl_tent_master: {
           tent_email: {
             not: null,
           },
         },
       },
       include: {
-        tbl_tent_master1: {
+        tbl_tent_master: {
           select: {
             tent_name: true,
             tent_email: true,
@@ -361,8 +361,8 @@ export async function sendFollowUpEmails() {
         subscription_uuid: sub.subscription_uuid,
         tent_id: sub.tent_id,
         end_date: sub.end_date,
-        tent_name: sub.tbl_tent_master1.tent_name,
-        tent_email: sub.tbl_tent_master1.tent_email,
+        tent_name: sub.tbl_tent_master.tent_name,
+        tent_email: sub.tbl_tent_master.tent_email,
         plan_name: sub.tbl_subscription_plans.plan_name,
         price_monthly: sub.tbl_subscription_plans.price_monthly,
         price_yearly: sub.tbl_subscription_plans.price_yearly,
@@ -382,14 +382,14 @@ export async function sendFollowUpEmails() {
           gte: day7Date,
           lte: day7End,
         },
-        tbl_tent_master1: {
+        tbl_tent_master: {
           tent_email: {
             not: null,
           },
         },
       },
       include: {
-        tbl_tent_master1: {
+        tbl_tent_master: {
           select: {
             tent_name: true,
             tent_email: true,
@@ -411,8 +411,8 @@ export async function sendFollowUpEmails() {
         subscription_uuid: sub.subscription_uuid,
         tent_id: sub.tent_id,
         end_date: sub.end_date,
-        tent_name: sub.tbl_tent_master1.tent_name,
-        tent_email: sub.tbl_tent_master1.tent_email,
+        tent_name: sub.tbl_tent_master.tent_name,
+        tent_email: sub.tbl_tent_master.tent_email,
         plan_name: sub.tbl_subscription_plans.plan_name,
         price_monthly: sub.tbl_subscription_plans.price_monthly,
         price_yearly: sub.tbl_subscription_plans.price_yearly,
@@ -432,14 +432,14 @@ export async function sendFollowUpEmails() {
           gte: day14Date,
           lte: day14End,
         },
-        tbl_tent_master1: {
+        tbl_tent_master: {
           tent_email: {
             not: null,
           },
         },
       },
       include: {
-        tbl_tent_master1: {
+        tbl_tent_master: {
           select: {
             tent_name: true,
             tent_email: true,
@@ -461,8 +461,8 @@ export async function sendFollowUpEmails() {
         subscription_uuid: sub.subscription_uuid,
         tent_id: sub.tent_id,
         end_date: sub.end_date,
-        tent_name: sub.tbl_tent_master1.tent_name,
-        tent_email: sub.tbl_tent_master1.tent_email,
+        tent_name: sub.tbl_tent_master.tent_name,
+        tent_email: sub.tbl_tent_master.tent_email,
         plan_name: sub.tbl_subscription_plans.plan_name,
         price_monthly: sub.tbl_subscription_plans.price_monthly,
         price_yearly: sub.tbl_subscription_plans.price_yearly,

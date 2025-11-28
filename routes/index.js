@@ -5,8 +5,9 @@ import { loadTemplate, sendEmail } from "../utils/nodemailer.js";
 import lookupsRoutes from "../modules/lookups/lookups.route.js";
 import authRoutes from "../modules/auth/auth.route.js";
 import settingsRoutes from "../modules/settings/settings.route.js";
-import controlsRoutes from "../modules/controls/controls.route.js";
+import rolesRoutes from "../modules/roles/roles.route.js";
 import subscriptionRoutes from "../modules/subscriptions/subscription.route.js";
+import usersRoutes from "../modules/users/users.route.js";
 import branchesRoutes from "../modules/branches/branches.route.js";
 
 const router = Router();
@@ -64,9 +65,10 @@ router.post("/welcome", sendWelcomeEmail);
 
 router.use("/lookups", lookupsRoutes);
 router.use("/auth", authRoutes);
-router.use("/controls", controlsRoutes);
+router.use("/roles", rolesRoutes);
 router.use("/settings", settingsRoutes);
 router.use("/subscription", subscriptionRoutes);
+router.use("/users", usersRoutes);
 router.use("/branches", branchesRoutes);
 
 export default router;

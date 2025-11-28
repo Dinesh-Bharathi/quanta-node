@@ -5,7 +5,7 @@ import { generateToken } from "../../utils/generateToken.js";
 export async function sendMagicLinkEmail(user) {
   const token = generateToken(
     {
-      user_uuid: user.user_uuid,
+      tenant_user_uuid: user.tenant_user_uuid,
       user_email: user.user_email,
     },
     "15m"
@@ -29,12 +29,7 @@ export async function sendMagicLinkEmail(user) {
     html,
   });
 
-  // await sendEmail({
-  //   from: `"Quanta Auth" <${process.env.SMTP_USER}>`,
-  //   to: user.user_email,
-  //   subject: "Welcome to Quanta – Verify your email",
-  //   html,
-  // });
+  console.log("📧 Magic verification email sent to:", user.user_email);
 }
 
 /**
@@ -50,7 +45,7 @@ export async function sendWelcomeEmail(user, tenant) {
   html = html
     .replace(/{{user_name}}/g, user.user_name)
     .replace(/{{user_email}}/g, user.user_email)
-    .replace(/{{tent_name}}/g, tenant.tent_name)
+    .replace(/{{tenant_name}}/g, tenant.tenant_name)
     .replace(/{{dashboard_url}}/g, dashboardUrl)
     .replace(/{{client_url}}/g, clientUrl)
     .replace(/{{current_year}}/g, currentYear);

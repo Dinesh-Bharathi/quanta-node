@@ -40,9 +40,9 @@ export async function createTenantSubscriptionRepo({
   paymentStatus = "PENDING",
   isAutoRenew = true,
 }) {
-  const tenant = await prisma.tbl_tent_master.findUnique({
-    where: { tent_uuid: tentUuid },
-    select: { tent_id: true },
+  const tenant = await prisma.tbl_tenant.findUnique({
+    where: { tenant_uuid: tentUuid },
+    select: { tenant_id: true },
   });
 
   if (!tenant) throw new Error("Tenant not found");
@@ -62,7 +62,7 @@ export async function createTenantSubscriptionRepo({
   const subscription = await prisma.tbl_tenant_subscriptions.create({
     data: {
       subscription_uuid,
-      tent_id: tenant.tent_id,
+      tenant_id: tenant.tenant_id,
       plan_id: plan.plan_id,
       start_date: now,
       end_date: endDate,
@@ -94,7 +94,7 @@ export async function updateSubscriptionPaymentRepo(subscriptionUuid, status) {
 export async function getTenantActiveSubscriptionRepo(tentUuid) {
   return prisma.tbl_tenant_subscriptions.findFirst({
     where: {
-      tbl_tent_master: { tent_uuid: tentUuid },
+      tbl_tenant: { tenant_uuid: tentUuid },
       is_active: true,
     },
     include: {

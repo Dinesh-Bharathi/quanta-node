@@ -67,17 +67,17 @@ export async function checkExpiringSubscriptions() {
           gte: sevenDaysFromNow,
           lte: sevenDaysEnd,
         },
-        tbl_tent_master: {
-          tent_email: {
+        tbl_tenant: {
+          tenant_email: {
             not: null,
           },
         },
       },
       include: {
-        tbl_tent_master: {
+        tbl_tenant: {
           select: {
-            tent_name: true,
-            tent_email: true,
+            tenant_name: true,
+            tenant_email: true,
           },
         },
         tbl_subscription_plans: {
@@ -95,11 +95,11 @@ export async function checkExpiringSubscriptions() {
       const emailData = {
         subscription_id: sub.subscription_id,
         subscription_uuid: sub.subscription_uuid,
-        tent_id: sub.tent_id,
+        tenant_id: sub.tenant_id,
         end_date: sub.end_date,
         is_auto_renew: sub.is_auto_renew,
-        tent_name: sub.tbl_tent_master.tent_name,
-        tent_email: sub.tbl_tent_master.tent_email,
+        tenant_name: sub.tbl_tenant.tenant_name,
+        tenant_email: sub.tbl_tenant.tenant_email,
         plan_name: sub.tbl_subscription_plans.plan_name,
         price_monthly: sub.tbl_subscription_plans.price_monthly,
         price_yearly: sub.tbl_subscription_plans.price_yearly,
@@ -107,7 +107,7 @@ export async function checkExpiringSubscriptions() {
       };
 
       await sendExpiryReminderEmail(emailData);
-      console.log(`📧 7-day reminder sent to: ${emailData.tent_email}`);
+      console.log(`📧 7-day reminder sent to: ${emailData.tenant_email}`);
 
       // Add small delay to avoid rate limiting
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -121,17 +121,17 @@ export async function checkExpiringSubscriptions() {
           gte: threeDaysFromNow,
           lte: threeDaysEnd,
         },
-        tbl_tent_master: {
-          tent_email: {
+        tbl_tenant: {
+          tenant_email: {
             not: null,
           },
         },
       },
       include: {
-        tbl_tent_master: {
+        tbl_tenant: {
           select: {
-            tent_name: true,
-            tent_email: true,
+            tenant_name: true,
+            tenant_email: true,
           },
         },
         tbl_subscription_plans: {
@@ -149,11 +149,11 @@ export async function checkExpiringSubscriptions() {
       const emailData = {
         subscription_id: sub.subscription_id,
         subscription_uuid: sub.subscription_uuid,
-        tent_id: sub.tent_id,
+        tenant_id: sub.tenant_id,
         end_date: sub.end_date,
         is_auto_renew: sub.is_auto_renew,
-        tent_name: sub.tbl_tent_master.tent_name,
-        tent_email: sub.tbl_tent_master.tent_email,
+        tenant_name: sub.tbl_tenant.tenant_name,
+        tenant_email: sub.tbl_tenant.tenant_email,
         plan_name: sub.tbl_subscription_plans.plan_name,
         price_monthly: sub.tbl_subscription_plans.price_monthly,
         price_yearly: sub.tbl_subscription_plans.price_yearly,
@@ -161,7 +161,9 @@ export async function checkExpiringSubscriptions() {
       };
 
       await sendUrgentExpiryEmail(emailData);
-      console.log(`📧 3-day urgent reminder sent to: ${emailData.tent_email}`);
+      console.log(
+        `📧 3-day urgent reminder sent to: ${emailData.tenant_email}`
+      );
 
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
@@ -174,17 +176,17 @@ export async function checkExpiringSubscriptions() {
           gte: oneDayFromNow,
           lte: oneDayEnd,
         },
-        tbl_tent_master: {
-          tent_email: {
+        tbl_tenant: {
+          tenant_email: {
             not: null,
           },
         },
       },
       include: {
-        tbl_tent_master: {
+        tbl_tenant: {
           select: {
-            tent_name: true,
-            tent_email: true,
+            tenant_name: true,
+            tenant_email: true,
           },
         },
         tbl_subscription_plans: {
@@ -202,11 +204,11 @@ export async function checkExpiringSubscriptions() {
       const emailData = {
         subscription_id: sub.subscription_id,
         subscription_uuid: sub.subscription_uuid,
-        tent_id: sub.tent_id,
+        tenant_id: sub.tenant_id,
         end_date: sub.end_date,
         is_auto_renew: sub.is_auto_renew,
-        tent_name: sub.tbl_tent_master.tent_name,
-        tent_email: sub.tbl_tent_master.tent_email,
+        tenant_name: sub.tbl_tenant.tenant_name,
+        tenant_email: sub.tbl_tenant.tenant_email,
         plan_name: sub.tbl_subscription_plans.plan_name,
         price_monthly: sub.tbl_subscription_plans.price_monthly,
         price_yearly: sub.tbl_subscription_plans.price_yearly,
@@ -214,7 +216,7 @@ export async function checkExpiringSubscriptions() {
       };
 
       await sendFinalReminderEmail(emailData);
-      console.log(`📧 Final 1-day reminder sent to: ${emailData.tent_email}`);
+      console.log(`📧 Final 1-day reminder sent to: ${emailData.tenant_email}`);
 
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
@@ -246,17 +248,17 @@ export async function processExpiredSubscriptions() {
         end_date: {
           lt: now,
         },
-        tbl_tent_master: {
-          tent_email: {
+        tbl_tenant: {
+          tenant_email: {
             not: null,
           },
         },
       },
       include: {
-        tbl_tent_master: {
+        tbl_tenant: {
           select: {
-            tent_name: true,
-            tent_email: true,
+            tenant_name: true,
+            tenant_email: true,
           },
         },
         tbl_subscription_plans: {
@@ -281,18 +283,18 @@ export async function processExpiredSubscriptions() {
       const emailData = {
         subscription_id: sub.subscription_id,
         subscription_uuid: sub.subscription_uuid,
-        tent_id: sub.tent_id,
+        tenant_id: sub.tenant_id,
         end_date: sub.end_date,
         is_auto_renew: sub.is_auto_renew,
-        tent_name: sub.tbl_tent_master.tent_name,
-        tent_email: sub.tbl_tent_master.tent_email,
+        tenant_name: sub.tbl_tenant.tenant_name,
+        tenant_email: sub.tbl_tenant.tenant_email,
         plan_name: sub.tbl_subscription_plans.plan_name,
       };
 
       // Send expiration notification
       await sendExpiredNotificationEmail(emailData);
       console.log(
-        `📧 Expiration notification sent to: ${emailData.tent_email}`
+        `📧 Expiration notification sent to: ${emailData.tenant_email}`
       );
 
       await new Promise((resolve) => setTimeout(resolve, 500));
@@ -332,17 +334,17 @@ export async function sendFollowUpEmails() {
           gte: day3Date,
           lte: day3End,
         },
-        tbl_tent_master: {
-          tent_email: {
+        tbl_tenant: {
+          tenant_email: {
             not: null,
           },
         },
       },
       include: {
-        tbl_tent_master: {
+        tbl_tenant: {
           select: {
-            tent_name: true,
-            tent_email: true,
+            tenant_name: true,
+            tenant_email: true,
           },
         },
         tbl_subscription_plans: {
@@ -359,17 +361,17 @@ export async function sendFollowUpEmails() {
       const emailData = {
         subscription_id: sub.subscription_id,
         subscription_uuid: sub.subscription_uuid,
-        tent_id: sub.tent_id,
+        tenant_id: sub.tenant_id,
         end_date: sub.end_date,
-        tent_name: sub.tbl_tent_master.tent_name,
-        tent_email: sub.tbl_tent_master.tent_email,
+        tenant_name: sub.tbl_tenant.tenant_name,
+        tenant_email: sub.tbl_tenant.tenant_email,
         plan_name: sub.tbl_subscription_plans.plan_name,
         price_monthly: sub.tbl_subscription_plans.price_monthly,
         price_yearly: sub.tbl_subscription_plans.price_yearly,
       };
 
       await sendFollowUpDay3Email(emailData);
-      console.log(`📧 Day 3 follow-up sent to: ${emailData.tent_email}`);
+      console.log(`📧 Day 3 follow-up sent to: ${emailData.tenant_email}`);
 
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
@@ -382,17 +384,17 @@ export async function sendFollowUpEmails() {
           gte: day7Date,
           lte: day7End,
         },
-        tbl_tent_master: {
-          tent_email: {
+        tbl_tenant: {
+          tenant_email: {
             not: null,
           },
         },
       },
       include: {
-        tbl_tent_master: {
+        tbl_tenant: {
           select: {
-            tent_name: true,
-            tent_email: true,
+            tenant_name: true,
+            tenant_email: true,
           },
         },
         tbl_subscription_plans: {
@@ -409,17 +411,17 @@ export async function sendFollowUpEmails() {
       const emailData = {
         subscription_id: sub.subscription_id,
         subscription_uuid: sub.subscription_uuid,
-        tent_id: sub.tent_id,
+        tenant_id: sub.tenant_id,
         end_date: sub.end_date,
-        tent_name: sub.tbl_tent_master.tent_name,
-        tent_email: sub.tbl_tent_master.tent_email,
+        tenant_name: sub.tbl_tenant.tenant_name,
+        tenant_email: sub.tbl_tenant.tenant_email,
         plan_name: sub.tbl_subscription_plans.plan_name,
         price_monthly: sub.tbl_subscription_plans.price_monthly,
         price_yearly: sub.tbl_subscription_plans.price_yearly,
       };
 
       await sendFollowUpDay7Email(emailData);
-      console.log(`📧 Day 7 follow-up sent to: ${emailData.tent_email}`);
+      console.log(`📧 Day 7 follow-up sent to: ${emailData.tenant_email}`);
 
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
@@ -432,17 +434,17 @@ export async function sendFollowUpEmails() {
           gte: day14Date,
           lte: day14End,
         },
-        tbl_tent_master: {
-          tent_email: {
+        tbl_tenant: {
+          tenant_email: {
             not: null,
           },
         },
       },
       include: {
-        tbl_tent_master: {
+        tbl_tenant: {
           select: {
-            tent_name: true,
-            tent_email: true,
+            tenant_name: true,
+            tenant_email: true,
           },
         },
         tbl_subscription_plans: {
@@ -459,17 +461,19 @@ export async function sendFollowUpEmails() {
       const emailData = {
         subscription_id: sub.subscription_id,
         subscription_uuid: sub.subscription_uuid,
-        tent_id: sub.tent_id,
+        tenant_id: sub.tenant_id,
         end_date: sub.end_date,
-        tent_name: sub.tbl_tent_master.tent_name,
-        tent_email: sub.tbl_tent_master.tent_email,
+        tenant_name: sub.tbl_tenant.tenant_name,
+        tenant_email: sub.tbl_tenant.tenant_email,
         plan_name: sub.tbl_subscription_plans.plan_name,
         price_monthly: sub.tbl_subscription_plans.price_monthly,
         price_yearly: sub.tbl_subscription_plans.price_yearly,
       };
 
       await sendFollowUpDay14Email(emailData);
-      console.log(`📧 Day 14 final follow-up sent to: ${emailData.tent_email}`);
+      console.log(
+        `📧 Day 14 final follow-up sent to: ${emailData.tenant_email}`
+      );
 
       await new Promise((resolve) => setTimeout(resolve, 500));
     }

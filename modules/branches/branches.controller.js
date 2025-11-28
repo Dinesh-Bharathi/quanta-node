@@ -1,3 +1,5 @@
+// controllers/branch.controller.js
+
 import {
   listBranchesService,
   createBranchService,
@@ -5,120 +7,134 @@ import {
   updateBranchService,
   deleteBranchService,
   getBranchUsersService,
-  createBranchUserService,
-  assignUserToBranchService,
 } from "./branches.service.js";
 
-// GET /api/branches/:tentUuid
-export const listBranches = async (req, res, next) => {
+import { successResponse, errorResponse } from "../../utils/response.js";
+
+/**
+ * GET /api/branches/:tenantUuid
+ */
+export const listBranchesController = async (req, res, next) => {
   try {
-    const branches = await listBranchesService({
-      tentUuid: req.params.tentUuid,
+    const { tenantUuid } = req.params;
+
+    if (!tenantUuid) {
+      return errorResponse(res, "Tenant UUID is required", 400);
+    }
+
+    const branches = await listBranchesService({ tenantUuid });
+
+    return successResponse(res, "Branches fetched successfully", branches, 200);
+  } catch (error) {
+    console.error("❌ List Branches Error:", error);
+    next(error);
+  }
+};
+
+/**
+ * POST /api/branches/:tenantUuid
+ */
+export const createBranchController = async (req, res, next) => {
+  try {
+    const { tenantUuid } = req.params;
+
+    if (!tenantUuid) {
+      return errorResponse(res, "Tenant UUID is required", 400);
+    }
+
+    const branch = await createBranchService({
+      tenantUuid,
+      ...req.body,
     });
-    res.status(200).json({ success: true, data: branches });
-  } catch (err) {
-    next(err);
+
+    return successResponse(res, "Branch created successfully", branch, 201);
+  } catch (error) {
+    console.error("❌ Create Branch Error:", error);
+    next(error);
   }
 };
 
-// POST /api/branches/:tentUuid
-export const createBranch = async (req, res, next) => {
+/**
+ * GET /api/branches/:tenantUuid/:branchUuid
+ */
+export const getBranchDetailsController = async (req, res, next) => {
   try {
-    const { tentUuid } = req.params;
-    const data = req.body;
+    const { tenantUuid, branchUuid } = req.params;
 
-    const branch = await createBranchService({ tentUuid, ...data });
+    if (!tenantUuid || !branchUuid) {
+      return errorResponse(
+        res,
+        "Tenant UUID and Branch UUID are required",
+        400
+      );
+    }
 
-    res.status(201).json({ success: true, data: branch });
-  } catch (err) {
-    next(err);
+    const branch = await getBranchDetailsService({
+      tenantUuid,
+      branchUuid,
+    });
+
+    return successResponse(res, "Branch details fetched successfully", branch);
+  } catch (error) {
+    console.error("❌ Get Branch Details Error:", error);
+    next(error);
   }
 };
 
-// GET /api/branches/:tentUuid/:branchUuid
-export const getBranchDetails = async (req, res, next) => {
+/**
+ * PUT /api/branches/:tenantUuid/:branchUuid
+ */
+export const updateBranchController = async (req, res, next) => {
   try {
-    const { tentUuid, branchUuid } = req.params;
-
-    const branch = await getBranchDetailsService({ tentUuid, branchUuid });
-
-    res.status(200).json({ success: true, data: branch });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// PUT /api/branches/:tentUuid/:branchUuid
-export const updateBranch = async (req, res, next) => {
-  try {
-    const { tentUuid, branchUuid } = req.params;
+    const { tenantUuid, branchUuid } = req.params;
 
     const branch = await updateBranchService({
-      tentUuid,
+      tenantUuid,
       branchUuid,
       updates: req.body,
     });
 
-    res.status(200).json({ success: true, data: branch });
-  } catch (err) {
-    next(err);
+    return successResponse(res, "Branch updated successfully", branch);
+  } catch (error) {
+    console.error("❌ Update Branch Error:", error);
+    next(error);
   }
 };
 
-// DELETE /api/branches/:tentUuid/:branchUuid
-export const deleteBranch = async (req, res, next) => {
+/**
+ * DELETE /api/branches/:tenantUuid/:branchUuid
+ */
+export const deleteBranchController = async (req, res, next) => {
   try {
-    const { tentUuid, branchUuid } = req.params;
+    const { tenantUuid, branchUuid } = req.params;
 
-    const result = await deleteBranchService({ tentUuid, branchUuid });
-
-    res
-      .status(200)
-      .json({ success: true, message: "Branch deleted", data: result });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// GET /api/branches/:tentUuid/:branchUuid/users
-export const getBranchUsers = async (req, res, next) => {
-  try {
-    const { tentUuid, branchUuid } = req.params;
-
-    const users = await getBranchUsersService({ tentUuid, branchUuid });
-
-    res.status(200).json({ success: true, data: users });
-  } catch (err) {
-    next(err);
-  }
-};
-
-// POST /api/branches/:tentUuid/:branchUuid/users
-export const createBranchUser = async (req, res, next) => {
-  try {
-    const { tentUuid, branchUuid } = req.params;
-
-    const user = await createBranchUserService({
-      tentUuid,
+    const result = await deleteBranchService({
+      tenantUuid,
       branchUuid,
-      ...req.body,
     });
 
-    res.status(201).json({ success: true, data: user });
-  } catch (err) {
-    next(err);
+    return successResponse(res, "Branch deleted successfully", result);
+  } catch (error) {
+    console.error("❌ Delete Branch Error:", error);
+    next(error);
   }
 };
 
-// PUT /api/branches/assign-user
-export const assignUserToBranch = async (req, res, next) => {
+/**
+ * GET /api/branches/:tenantUuid/:branchUuid/users
+ */
+export const getBranchUsersController = async (req, res, next) => {
   try {
-    const { userUuid, branchUuid } = req.body;
+    const { tenantUuid, branchUuid } = req.params;
 
-    const result = await assignUserToBranchService({ userUuid, branchUuid });
+    const users = await getBranchUsersService({
+      tenantUuid,
+      branchUuid,
+    });
 
-    res.status(200).json({ success: true, data: result });
-  } catch (err) {
-    next(err);
+    return successResponse(res, "Branch users fetched successfully", users);
+  } catch (error) {
+    console.error("❌ Get Branch Users Error:", error);
+    next(error);
   }
 };

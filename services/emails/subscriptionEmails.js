@@ -37,7 +37,7 @@ export async function sendExpiryReminderEmail(subscription) {
   const renewUrl = `${clientUrl}/subscription/renew`;
 
   html = html
-    .replace(/{{tent_name}}/g, subscription.tent_name)
+    .replace(/{{tenant_name}}/g, subscription.tenant_name)
     .replace(/{{plan_name}}/g, subscription.plan_name)
     .replace(/{{end_date}}/g, formatDate(subscription.end_date))
     .replace(/{{days_remaining}}/g, daysRemaining)
@@ -47,7 +47,7 @@ export async function sendExpiryReminderEmail(subscription) {
     .replace(/{{is_auto_renew}}/g, subscription.is_auto_renew);
 
   await sendEmail({
-    to: subscription.tent_email,
+    to: subscription.tenant_email,
     subject: "⏰ Your Quanta Subscription Expires in 7 Days",
     html,
   });
@@ -63,7 +63,7 @@ export async function sendUrgentExpiryEmail(subscription) {
   const renewUrl = `${clientUrl}/subscription/renew`;
 
   html = html
-    .replace(/{{tent_name}}/g, subscription.tent_name)
+    .replace(/{{tenant_name}}/g, subscription.tenant_name)
     .replace(/{{plan_name}}/g, subscription.plan_name)
     .replace(/{{end_date}}/g, formatDate(subscription.end_date))
     .replace(/{{days_remaining}}/g, daysRemaining)
@@ -73,7 +73,7 @@ export async function sendUrgentExpiryEmail(subscription) {
     .replace(/{{is_auto_renew}}/g, subscription.is_auto_renew);
 
   await sendEmail({
-    to: subscription.tent_email,
+    to: subscription.tenant_email,
     subject: "🚨 URGENT: Your Quanta Subscription Expires in 3 Days",
     html,
   });
@@ -88,7 +88,7 @@ export async function sendFinalReminderEmail(subscription) {
   const renewUrl = `${clientUrl}/subscription/renew`;
 
   html = html
-    .replace(/{{tent_name}}/g, subscription.tent_name)
+    .replace(/{{tenant_name}}/g, subscription.tenant_name)
     .replace(/{{plan_name}}/g, subscription.plan_name)
     .replace(/{{end_date}}/g, formatDate(subscription.end_date))
     .replace(/{{renew_url}}/g, renewUrl)
@@ -97,7 +97,7 @@ export async function sendFinalReminderEmail(subscription) {
     .replace(/{{is_auto_renew}}/g, subscription.is_auto_renew);
 
   await sendEmail({
-    to: subscription.tent_email,
+    to: subscription.tenant_email,
     subject: "⚠️ FINAL NOTICE: Your Quanta Subscription Expires Tomorrow",
     html,
   });
@@ -112,7 +112,7 @@ export async function sendExpiredNotificationEmail(subscription) {
   const renewUrl = `${clientUrl}/subscription/renew`;
 
   html = html
-    .replace(/{{tent_name}}/g, subscription.tent_name)
+    .replace(/{{tenant_name}}/g, subscription.tenant_name)
     .replace(/{{plan_name}}/g, subscription.plan_name)
     .replace(/{{end_date}}/g, formatDate(subscription.end_date))
     .replace(/{{renew_url}}/g, renewUrl)
@@ -120,7 +120,7 @@ export async function sendExpiredNotificationEmail(subscription) {
     .replace(/{{current_year}}/g, currentYear);
 
   await sendEmail({
-    to: subscription.tent_email,
+    to: subscription.tenant_email,
     subject: "❌ Your Quanta Subscription Has Expired",
     html,
   });
@@ -136,7 +136,7 @@ export async function sendFollowUpDay3Email(subscription) {
   const supportUrl = `${clientUrl}/contact`;
 
   html = html
-    .replace(/{{tent_name}}/g, subscription.tent_name)
+    .replace(/{{tenant_name}}/g, subscription.tenant_name)
     .replace(/{{plan_name}}/g, subscription.plan_name)
     .replace(/{{renew_url}}/g, renewUrl)
     .replace(/{{support_url}}/g, supportUrl)
@@ -144,7 +144,7 @@ export async function sendFollowUpDay3Email(subscription) {
     .replace(/{{current_year}}/g, currentYear);
 
   await sendEmail({
-    to: subscription.tent_email,
+    to: subscription.tenant_email,
     subject: "💡 We Miss You! Renew Your Quanta Subscription",
     html,
   });
@@ -160,7 +160,7 @@ export async function sendFollowUpDay7Email(subscription) {
   const supportUrl = `${clientUrl}/contact`;
 
   html = html
-    .replace(/{{tent_name}}/g, subscription.tent_name)
+    .replace(/{{tenant_name}}/g, subscription.tenant_name)
     .replace(/{{plan_name}}/g, subscription.plan_name)
     .replace(/{{renew_url}}/g, renewUrl)
     .replace(/{{support_url}}/g, supportUrl)
@@ -168,7 +168,7 @@ export async function sendFollowUpDay7Email(subscription) {
     .replace(/{{current_year}}/g, currentYear);
 
   await sendEmail({
-    to: subscription.tent_email,
+    to: subscription.tenant_email,
     subject: "🎁 Special Offer: Come Back to Quanta",
     html,
   });
@@ -184,7 +184,7 @@ export async function sendFollowUpDay14Email(subscription) {
   const supportUrl = `${clientUrl}/contact`;
 
   html = html
-    .replace(/{{tent_name}}/g, subscription.tent_name)
+    .replace(/{{tenant_name}}/g, subscription.tenant_name)
     .replace(/{{plan_name}}/g, subscription.plan_name)
     .replace(/{{renew_url}}/g, renewUrl)
     .replace(/{{support_url}}/g, supportUrl)
@@ -192,7 +192,7 @@ export async function sendFollowUpDay14Email(subscription) {
     .replace(/{{current_year}}/g, currentYear);
 
   await sendEmail({
-    to: subscription.tent_email,
+    to: subscription.tenant_email,
     subject: "👋 Last Chance to Rejoin Quanta",
     html,
   });

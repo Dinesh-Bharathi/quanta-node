@@ -17,293 +17,756 @@ import {
 } from "./auth.repository.js";
 
 /**
- * Step 1: Create user and send magic link
- * NO ROLE ASSIGNMENT - Roles are assigned when user creates/joins organization
+ * Create or return existing global_user with email uniqueness.
+ * Uses provided prisma client/transactionable client (client may be prisma or tx).
+ *
+ * Returns: { global_user_id, global_user_uuid, email, name }
  */
-export async function registerUser({ user_name, user_email, password }) {
-  // 1️⃣ Check if user exists
-  const existingUser = await prisma.tbl_tent_users.findUnique({
-    where: { user_email },
-    select: {
-      user_id: true,
-      user_uuid: true,
-      user_name: true,
-      user_email: true,
-      is_email_verified: true,
-      tent_id: true,
-    },
-  });
+export async function createOrGetGlobalUser(client, { name, email }) {
+  const normalized = email.trim().toLowerCase();
+  try {
+    // look for existing
+    const existing = await client.tbl_global_users.findFirst({
+      where: { email: normalized },
+      select: {
+        global_user_id: true,
+        global_user_uuid: true,
+        email: true,
+        name: true,
+      },
+    });
 
-  // ==========================
-  // CASE 1: USER EXISTS + NOT VERIFIED
-  // ==========================
-  if (existingUser && !existingUser.is_email_verified) {
-    console.log("📧 Resending verification link to existing unverified user");
+    if (existing) return existing;
 
-    // Check rate limiting (prevent spam)
-    const recentlySent = await checkRecentVerificationAttempt(
-      existingUser.user_id
-    );
-    if (recentlySent) {
-      throw new Error(
-        "Verification email was recently sent. Please check your inbox or wait 2 minutes."
+    const global_user_uuid = generateShortUUID();
+
+    const created = await client.tbl_global_users.create({
+      data: {
+        global_user_uuid,
+        email: normalized,
+        name,
+      },
+      select: {
+        global_user_id: true,
+        global_user_uuid: true,
+        email: true,
+        name: true,
+      },
+    });
+
+    return created;
+  } catch (error) {
+    // Handle race condition where another process inserted the same email concurrently.
+    if (error?.code === "P2002") {
+      console.log(
+        "Global user create race detected; fetching existing record",
+        {
+          email: normalized,
+        }
       );
+      const fallback = await client.tbl_global_users.findFirst({
+        where: { email: normalized },
+        select: {
+          global_user_id: true,
+          global_user_uuid: true,
+          email: true,
+          name: true,
+        },
+      });
+      if (fallback) return fallback;
     }
 
-    await sendMagicLinkEmail(existingUser);
+    // otherwise rethrow
+    throw error;
+  }
+}
 
-    // Update timestamp for rate limiting
-    await prisma.tbl_tent_users.update({
-      where: { user_id: existingUser.user_id },
-      data: { modified_on: new Date() },
+/**
+ * Check whether an EMAIL_VERIFICATION token was created in the last `windowMs` (default 2 minutes)
+ * Returns true if recently sent.
+ */
+export async function checkRecentVerificationAttempt(
+  tenant_user_id,
+  lastModified,
+  windowMs = 2 * 60 * 1000
+) {
+  try {
+    if (!tenant_user_id) return false;
+
+    // Check token table for recent EMAIL_VERIFICATION token
+    const recentToken = await prisma.tbl_tokens.findFirst({
+      where: {
+        tenant_user_id,
+        token_type: "EMAIL_VERIFICATION",
+        created_on: {
+          gte: new Date(Date.now() - windowMs),
+        },
+      },
+      orderBy: { created_on: "desc" },
+    });
+
+    if (recentToken) return true;
+
+    if (lastModified) {
+      const twoMinutesAgo = new Date(Date.now() - windowMs);
+      if (new Date(lastModified) > twoMinutesAgo) return true;
+    }
+
+    return false;
+  } catch (err) {
+    console.error("Error in checkRecentVerificationAttempt", err);
+    // Fail open — don't block registration if check fails.
+    return false;
+  }
+}
+
+/**
+ * Register user (signup)
+ *
+ * Input:
+ *  - user_name
+ *  - user_email
+ *  - password
+ *
+ * Returns object matching controller expectations:
+ *  - verification_sent / verification_resent / tenant_pending
+ */
+export async function registerUser({ user_name, user_email, password }) {
+  const email = user_email.trim().toLowerCase();
+  const name = user_name?.trim();
+
+  try {
+    // Try to find tenant-level user (tenant-scoped)
+    const existingUser = await prisma.tbl_tenant_users.findFirst({
+      where: { user_email: email },
+      select: {
+        tenant_user_id: true,
+        tenant_user_uuid: true,
+        user_name: true,
+        user_email: true,
+        is_email_verified: true,
+        tenant_id: true,
+        modified_on: true,
+        global_user_id: true,
+      },
+    });
+
+    // CASE: exists but not verified => resend
+    if (existingUser && !existingUser.is_email_verified) {
+      console.info("User exists but not verified; preparing resend", {
+        tenant_user_id: existingUser.tenant_user_id,
+        email,
+      });
+
+      const recentlySent = await checkRecentVerificationAttempt(
+        existingUser.tenant_user_id,
+        existingUser.modified_on
+      );
+      if (recentlySent) {
+        throw new Error(
+          "Verification email was recently sent. Please check your inbox or wait 2 minutes before requesting again."
+        );
+      }
+
+      await sendMagicLinkEmail({
+        tenant_user_id: existingUser.tenant_user_id.toString(),
+        tenant_user_uuid: existingUser.tenant_user_uuid,
+        user_email: existingUser.user_email,
+        user_name: existingUser.user_name,
+      });
+
+      // update modified_on to mark send
+      await prisma.tbl_tenant_users.update({
+        where: { tenant_user_id: existingUser.tenant_user_id },
+        data: { modified_on: new Date() },
+      });
+
+      return {
+        status: "verification_resent",
+        message:
+          "Account exists but not verified. A new verification link has been sent to your email.",
+        tenant_user_uuid: existingUser.tenant_user_uuid,
+        user_email: existingUser.user_email,
+      };
+    }
+
+    // CASE: verified + no tenant => onboarding redirect
+    if (
+      existingUser &&
+      existingUser.is_email_verified &&
+      !existingUser.tenant_id
+    ) {
+      console.info("Verified user, no tenant - redirect to onboarding", {
+        email,
+        tenant_user_uuid: existingUser.tenant_user_uuid,
+      });
+
+      return {
+        status: "tenant_pending",
+        redirect: `/signup/onboarding?tenant_user_uuid=${existingUser.tenant_user_uuid}`,
+        message: "Email verified. Please complete your organization setup.",
+        tenant_user_uuid: existingUser.tenant_user_uuid,
+        user_email: existingUser.user_email,
+      };
+    }
+
+    // CASE: verified + has tenant => conflict
+    if (
+      existingUser &&
+      existingUser.is_email_verified &&
+      existingUser.tenant_id
+    ) {
+      console.log("User already registered with tenant", {
+        email,
+        tenant_id: existingUser.tenant_id,
+      });
+      const err = new Error(
+        "This email is already registered. Please login or use a different email."
+      );
+      err.code = "ALREADY_REGISTERED_WITH_TENANT";
+      throw err;
+    }
+
+    // CASE: new user => create global_user (if missing) + tenant_user inside transaction
+    console.info("Creating new user (global + tenant_user).", { email });
+
+    const tenant_user_uuid = generateShortUUID();
+    const hashedPwd = await hashPassword(password);
+
+    const { newUser } = await prisma.$transaction(
+      async (tx) => {
+        // ensure global user exists (create or get)
+        const globalUser = await createOrGetGlobalUser(tx, { name, email });
+
+        // create tenant_user (tenant_id null until onboarding)
+        const createdTenantUser = await tx.tbl_tenant_users.create({
+          data: {
+            tenant_user_uuid,
+            user_name: name,
+            user_email: email,
+            password: hashedPwd,
+            is_owner: false,
+            is_email_verified: false,
+            global_user_id: globalUser.global_user_id,
+          },
+          select: {
+            tenant_user_id: true,
+            tenant_user_uuid: true,
+            user_name: true,
+            user_email: true,
+            global_user_id: true,
+          },
+        });
+
+        return { newUser: createdTenantUser };
+      },
+      { timeout: 15000 }
+    );
+
+    // Send verification email (outside transaction; best effort to succeed)
+    await sendMagicLinkEmail({
+      tenant_user_id: newUser.tenant_user_id.toString(),
+      tenant_user_uuid: newUser.tenant_user_uuid,
+      user_email: newUser.user_email,
+      user_name: newUser.user_name,
+    });
+
+    console.info("Verification email sent for new user", {
+      tenant_user_uuid: newUser.tenant_user_uuid,
+      email: newUser.user_email,
     });
 
     return {
-      status: "verification_resent",
+      status: "verification_sent",
       message:
-        "Account exists but not verified. A new verification link has been sent.",
-      user_email: existingUser.user_email,
+        "Registration successful! Please check your email to verify your account.",
+      tenant_user_uuid: newUser.tenant_user_uuid,
+      user_email: newUser.user_email,
     };
+  } catch (error) {
+    console.error("Register User Service Error", {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+    });
+
+    // Prisma unique constraint on tenant_user_uuid or unique tenant user email
+    if (error?.code === "P2002") {
+      // map to user-friendly message
+      const friendly = new Error("This email is already registered");
+      friendly.code = "P2002";
+      throw friendly;
+    }
+
+    // custom business error
+    if (error.code === "ALREADY_REGISTERED_WITH_TENANT") throw error;
+
+    // otherwise surface
+    throw error;
   }
-
-  // ==========================
-  // CASE 2: USER EXISTS + VERIFIED + NO TENANT
-  // ==========================
-  if (existingUser && existingUser.is_email_verified && !existingUser.tent_id) {
-    console.log("✅ User verified but tenant not created - redirecting");
-
-    return {
-      status: "tenant_pending",
-      redirect: `/signup/onboarding?user_uuid=${existingUser.user_uuid}`,
-      message: "Email verified. Please complete organization setup.",
-      user_uuid: existingUser.user_uuid,
-      user_email: existingUser.user_email,
-    };
-  }
-
-  // ==========================
-  // CASE 3: USER EXISTS + VERIFIED + HAS TENANT
-  // ==========================
-  if (existingUser && existingUser.is_email_verified && existingUser.tent_id) {
-    throw new Error(
-      "This email is already registered. Please login or use a different email."
-    );
-  }
-
-  // ==========================
-  // CASE 4: NEW USER — CREATE RECORD
-  // ==========================
-  const user_uuid = generateShortUUID();
-  const hashedPwd = await hashPassword(password);
-
-  const newUser = await prisma.tbl_tent_users.create({
-    data: {
-      user_uuid,
-      user_name,
-      user_email,
-      password: hashedPwd,
-      is_owner: false,
-      is_email_verified: false,
-      tent_id: null, // No tenant yet
-    },
-    select: {
-      user_id: true,
-      user_uuid: true,
-      user_name: true,
-      user_email: true,
-    },
-  });
-
-  // ✅ NO ROLE ASSIGNMENT HERE - Roles assigned when user creates organization
-
-  // Send verification email
-  await sendMagicLinkEmail(newUser);
-
-  console.log("📧 Verification email sent to new user:", newUser.user_email);
-
-  return {
-    status: "verification_sent",
-    message: "Verification email sent successfully. Please check your inbox.",
-    user_uuid: newUser.user_uuid,
-    user_name: newUser.user_name,
-    user_email: newUser.user_email,
-  };
 }
 
 /**
- * Check if verification email was sent recently (rate limiting)
- */
-async function checkRecentVerificationAttempt(userId) {
-  const user = await prisma.tbl_tent_users.findUnique({
-    where: { user_id: userId },
-    select: { modified_on: true },
-  });
-
-  if (!user) return false;
-
-  const now = new Date();
-  const minutesSinceLastUpdate = (now - user.modified_on) / (1000 * 60);
-
-  return minutesSinceLastUpdate < 2; // 2 minute cooldown
-}
-
-/**
- * Resend verification email
+ * Resend Verification Service
  */
 export async function resendVerificationService(user_email) {
-  const user = await prisma.tbl_tent_users.findUnique({
-    where: { user_email },
-    select: {
-      user_id: true,
-      user_uuid: true,
-      user_name: true,
-      user_email: true,
-      is_email_verified: true,
-      tent_id: true,
-      modified_on: true,
-    },
-  });
+  const email = user_email.trim().toLowerCase();
 
-  // Generic response to prevent user enumeration
-  if (!user) {
-    return {
-      message:
-        "If an account exists with this email, a verification link has been sent.",
-      data: null,
-    };
-  }
+  try {
+    const user = await prisma.tbl_tenant_users.findFirst({
+      where: { user_email: email },
+      select: {
+        tenant_user_id: true,
+        tenant_user_uuid: true,
+        user_name: true,
+        user_email: true,
+        is_email_verified: true,
+        tenant_id: true,
+        modified_on: true,
+      },
+    });
 
-  // Already verified
-  if (user.is_email_verified) {
-    // Check if tenant exists
-    if (user.tent_id) {
+    if (!user) {
+      console.info(
+        "Resend verification requested for non-existent email (no-op to avoid enumeration).",
+        { email }
+      );
       return {
+        status: "user_not_found",
+        message:
+          "If an account exists with this email, a verification link has been sent.",
+        data: null,
+      };
+    }
+
+    if (user.is_email_verified && user.tenant_id) {
+      return {
+        status: "already_verified_with_tenant",
         message: "Your email is already verified. Please login to continue.",
         data: null,
       };
-    } else {
+    }
+
+    if (user.is_email_verified && !user.tenant_id) {
       return {
+        status: "already_verified_no_tenant",
         message:
-          "Your email is verified. Please complete organization registration.",
+          "Your email is verified. Please complete your organization registration.",
         data: {
-          redirect: `/signup/onboarding?user_uuid=${user.user_uuid}`,
+          tenant_user_uuid: user.tenant_user_uuid,
+          redirect: `/signup/onboarding?tenant_user_uuid=${user.tenant_user_uuid}`,
         },
       };
     }
-  }
 
-  // Rate limiting check
-  const recentlySent = await checkRecentVerificationAttempt(user.user_id);
-  if (recentlySent) {
-    throw new Error(
-      "Please wait a few minutes before requesting another verification email."
+    // not verified -> rate limit check
+    const recentlySent = await checkRecentVerificationAttempt(
+      user.tenant_user_id,
+      user.modified_on
     );
+    if (recentlySent) {
+      console.log("Rate limit hit for resend verification", {
+        tenant_user_id: user.tenant_user_id,
+        email,
+      });
+      throw new Error(
+        "Verification email was recently sent. Please check your inbox or wait 2 minutes before requesting again."
+      );
+    }
+
+    // send magic link
+    await sendMagicLinkEmail({
+      tenant_user_id: user.tenant_user_id.toString(),
+      tenant_user_uuid: user.tenant_user_uuid,
+      user_email: user.user_email,
+      user_name: user.user_name,
+    });
+
+    // update modified_on for rate limiting
+    await prisma.tbl_tenant_users.update({
+      where: { tenant_user_id: user.tenant_user_id },
+      data: { modified_on: new Date() },
+    });
+
+    console.info("Verification email resent", {
+      tenant_user_id: user.tenant_user_id,
+      email,
+    });
+
+    return {
+      status: "verification_sent",
+      message: "A new verification link has been sent to your email address.",
+      data: { user_email: user.user_email },
+    };
+  } catch (error) {
+    console.error("Resend Verification Service Error", {
+      message: error.message,
+      code: error.code,
+    });
+    throw error;
   }
-
-  // Send new verification link
-  await sendMagicLinkEmail(user);
-
-  // Update timestamp
-  await prisma.tbl_tent_users.update({
-    where: { user_id: user.user_id },
-    data: { modified_on: new Date() },
-  });
-
-  return {
-    message: "A new verification link has been sent to your email address.",
-    data: { user_email },
-  };
 }
 
 /**
- * Step 2: Register tenant for verified user
+ * Register Tenant (Onboarding) — reuses your createTenantCore and permission creation logic.
+ *
+ * Flow:
+ *  1) Validates tenant_user exists and email verified
+ *  2) Ensures user not linked to tenant yet
+ *  3) Calls createTenantCore (transaction inside repository)
+ *  4) Calls createTenantPermissions (outside tx)
+ *  5) Sends welcome email (best effort)
+ *  6) Generates auth token and returns sanitized result
  */
 export async function registerTenantForUser(userUuid, data) {
-  // 1. Validate user
-  const user = await prisma.tbl_tent_users.findUnique({
-    where: { user_uuid: userUuid },
-    select: {
-      user_id: true,
-      user_uuid: true,
-      user_name: true,
-      user_email: true,
-      is_email_verified: true,
-      tent_id: true,
-    },
-  });
+  try {
+    // 1) validate user
+    const user = await prisma.tbl_tenant_users.findUnique({
+      where: { tenant_user_uuid: userUuid },
+      select: {
+        tenant_user_id: true,
+        tenant_user_uuid: true,
+        user_name: true,
+        user_email: true,
+        is_email_verified: true,
+        tenant_id: true,
+      },
+    });
 
-  if (!user) throw new Error("User not found");
-  if (!user.is_email_verified)
-    throw new Error("Please verify your email first");
-  if (user.tent_id) throw new Error("User already linked to a tenant");
+    if (!user) {
+      console.log("Attempt to register tenant for missing user", { userUuid });
+      throw new Error("User not found");
+    }
 
-  // 2. Create core tenant setup inside transaction
-  const core = await createTenantCore(prisma, user, data, data.plan_uuid);
+    if (!user.is_email_verified) {
+      console.log("Attempt to register tenant before email verification", {
+        user: user.user_email,
+      });
+      throw new Error("Please verify your email first");
+    }
 
-  // 3. Setup permissions outside transaction
-  await createTenantPermissions(prisma, core.roles);
+    if (user.tenant_id) {
+      console.log("User already linked to tenant", {
+        user: user.user_email,
+        tenant_id: user.tenant_id,
+      });
+      throw new Error("User already linked to a tenant");
+    }
 
-  // 4. Send welcome email (best effort)
-  sendWelcomeEmail(
-    { user_name: user.user_name, user_email: user.user_email },
-    { tent_name: core.tenant.tent_name }
-  ).catch((e) => console.error("Email error:", e));
+    console.info("Creating tenant core for user", {
+      userUuid,
+      email: user.user_email,
+    });
 
-  // 5. Create JWT
-  const token = generateToken({
-    userId: Number(core.updatedUser.user_id),
-    tent_uuid: core.tenant.tent_uuid,
-    user_uuid: core.updatedUser.user_uuid,
-    user_email: core.updatedUser.user_email,
-    is_owner: true,
-  });
+    // create tenant core (repository handles transaction)
+    const planUuid = data.plan_uuid || null;
+    const core = await createTenantCore(prisma, user, data, planUuid);
 
-  return sanitizeResponse({
-    token,
-    tent_uuid: core.tenant.tent_uuid,
-    branch_uuid: core.branch.branch_uuid,
-    user_uuid: core.updatedUser.user_uuid,
-  });
+    console.info("Tenant core created", {
+      tenant_uuid: core.tenant.tenant_uuid,
+      branch_uuid: core.branch.branch_uuid,
+    });
+
+    // create permissions (outside transaction)
+    await createTenantPermissions(prisma, core.roles);
+    console.info("Permissions created for new tenant", {
+      tenant_id: core.tenant.tenant_id,
+    });
+
+    // send welcome email (best-effort)
+    sendWelcomeEmail(
+      { user_name: user.user_name, user_email: user.user_email },
+      {
+        tenant_name: core.tenant.tenant_name,
+        tenant_uuid: core.tenant.tenant_uuid,
+      }
+    ).catch((e) => {
+      console.error("Welcome email send failed (non-blocking)", e);
+    });
+
+    // generate JWT token for immediate login
+    const token = generateToken(
+      {
+        tenant_user_id: core.updatedUser.tenant_user_id.toString(),
+        tenant_uuid: core.tenant.tenant_uuid,
+        tenant_user_uuid: core.updatedUser.tenant_user_uuid,
+        user_email: core.updatedUser.user_email,
+        user_name: core.updatedUser.user_name,
+        is_owner: true,
+        tenant_id: core.tenant.tenant_id.toString(),
+      },
+      15
+    );
+
+    return {
+      token,
+      result: {
+        tenant_uuid: core.tenant.tenant_uuid,
+        branch_uuid: core.branch.branch_uuid,
+        tenant_user_uuid: core.updatedUser.tenant_user_uuid,
+        user_email: core.updatedUser.user_email,
+        user_name: core.updatedUser.user_name,
+        is_owner: true,
+      },
+    };
+  } catch (error) {
+    console.error("Register Tenant Service Error", {
+      message: error.message,
+      code: error.code,
+      stack: error.stack,
+    });
+    throw error;
+  }
 }
-/**
- * Authenticate user by email and password
- */
-export async function authenticateUser({ email, password }) {
-  const user = await prisma.tbl_tent_users.findFirst({
+
+/* ============================================================
+   1. AUTHENTICATE GLOBAL USER BY EMAIL + PASSWORD
+   ============================================================ */
+export async function authenticateGlobalUser({
+  email,
+  password,
+  ip = null,
+  userAgent = null,
+}) {
+  // 1️⃣ Fetch all accounts with this email
+  const tenantAccounts = await prisma.tbl_tenant_users.findMany({
     where: { user_email: email },
     include: {
-      tbl_tent_master: true,
-      tbl_branches: true,
+      tenant: {
+        // ✔ correct
+        select: { tenant_uuid: true, tenant_name: true },
+      },
+      userRoles: {
+        // ✔ correct
+        include: { role: true },
+      },
     },
   });
 
-  if (!user) throw new Error("Invalid credentials");
+  if (!tenantAccounts || tenantAccounts.length === 0) {
+    throw new Error("Invalid credentials");
+  }
 
-  const isMatch = await comparePassword(password, user.password);
-  if (!isMatch) throw new Error("Invalid credentials");
+  const tenants = [];
+  let matchedAny = false;
 
-  const token = generateToken({
-    user_uuid: user.user_uuid,
-    user_email: user.user_email,
+  // 2️⃣ Check password for each tenant account
+  for (const acc of tenantAccounts) {
+    const hasPassword = !!acc.password;
+    let passwordMatched = false;
+
+    if (hasPassword) {
+      try {
+        passwordMatched = await comparePassword(password, acc.password);
+      } catch {}
+    }
+
+    if (passwordMatched) matchedAny = true;
+
+    const roleSummary = acc.userRoles
+      .map((ur) => ur.role?.role_name)
+      .filter(Boolean);
+
+    tenants.push({
+      tenant_user_uuid: acc.tenant_user_uuid,
+      tenant_uuid: acc.tenant?.tenant_uuid || null,
+      tenant_name: acc.tenant?.tenant_name || null,
+      is_owner: acc.is_owner,
+      is_email_verified: acc.is_email_verified,
+      roles: roleSummary,
+      hasPassword,
+      passwordMatched,
+    });
+  }
+
+  if (!matchedAny) {
+    throw new Error("Invalid credentials");
+  }
+
+  return { tenants, matchedAny };
+}
+
+/* ============================================================
+   2. CREATE GLOBAL SESSION (SHORT LIVED)
+   ============================================================ */
+export async function createGlobalSession({
+  email,
+  tenantUserUuids,
+  ip = null,
+  userAgent = null,
+}) {
+  const global_session_uuid = generateShortUUID();
+  const expires_at = new Date(Date.now() + 5 * 60 * 1000); // 5 mins
+
+  return prisma.tbl_global_sessions.create({
+    data: {
+      global_session_uuid,
+      email,
+      tenant_user_uuids: tenantUserUuids.join(","),
+      expires_at,
+    },
+    select: {
+      global_session_uuid: true,
+      expires_at: true,
+    },
+  });
+}
+
+/* ============================================================
+   3. VALIDATE GLOBAL SESSION (STEP 2)
+   ============================================================ */
+export async function validateGlobalSession(global_session_uuid) {
+  const session = await prisma.tbl_global_sessions.findUnique({
+    where: { global_session_uuid },
   });
 
+  if (!session) throw new Error("Invalid session");
+
+  if (session.expires_at < new Date()) {
+    await prisma.tbl_global_sessions.delete({
+      where: { global_session_uuid },
+    });
+    throw new Error("Session expired");
+  }
+
   return {
-    token,
-    user_uuid: user.user_uuid,
-    tent_uuid: user.tbl_tent_master?.tent_uuid || null,
-    branch_uuid: user.tbl_branches?.branch_uuid || null,
+    email: session.email,
+    tenantUserUuids: session.tenant_user_uuids
+      ? session.tenant_user_uuids.split(",")
+      : [],
   };
 }
 
-/**
- * Get active session with full user context
- */
-export async function getActiveSession(userUuid) {
-  // 1️⃣ Fetch user with tenant and role assignments
-  const user = await prisma.tbl_tent_users.findUnique({
-    where: { user_uuid: userUuid },
+/* ============================================================
+   4. CONSUME GLOBAL SESSION (DELETE ON USE)
+   ============================================================ */
+export async function consumeGlobalSession(global_session_uuid) {
+  try {
+    await prisma.tbl_global_sessions.delete({
+      where: { global_session_uuid },
+    });
+  } catch (err) {
+    console.error("⚠ Failed to delete global session", err);
+  }
+}
+
+/* ============================================================
+   5. FINALIZE TENANT LOGIN (STEP 2)
+   Creates tenant_session_uuid + JWT
+   ============================================================ */
+export async function finalizeTenantLogin({
+  global_session_uuid,
+  tenant_user_uuid,
+  ip = null,
+  userAgent = null,
+}) {
+  // 1️⃣ Validate global session and user selection
+  const { tenantUserUuids } = await validateGlobalSession(global_session_uuid);
+
+  if (!tenantUserUuids.includes(tenant_user_uuid)) {
+    throw new Error("Unauthorized tenant selection");
+  }
+
+  // 2️⃣ Fetch tenant account
+  const account = await prisma.tbl_tenant_users.findUnique({
+    where: { tenant_user_uuid },
     include: {
-      tbl_tent_master: {
+      tenant: { select: { tenant_uuid: true, tenant_id: true } },
+    },
+  });
+
+  if (!account) throw new Error("Tenant user not found");
+
+  // 3️⃣ Create tenant session
+  const tenant_session_uuid = generateShortUUID();
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+
+  await prisma.tbl_tenant_sessions.create({
+    data: {
+      tenant_session_uuid,
+      tenant_user_id: account.tenant_user_id,
+      tenant_id: account.tenant?.tenant_id || null,
+      ip_address: ip,
+      user_agent: userAgent,
+      expires_at: expiresAt,
+      is_active: true,
+    },
+  });
+
+  // 4️⃣ Prepare JWT payload
+  const payload = {
+    tenant_session_uuid,
+    tenant_user_uuid: account.tenant_user_uuid,
+    tenant_uuid: account.tenant?.tenant_uuid || null,
+    global_user_id: account.global_user_id.toString(),
+    email: account.user_email,
+  };
+
+  const token = generateToken(payload, "24h");
+
+  // 5️⃣ Destroy global session to prevent reuse
+  await consumeGlobalSession(global_session_uuid);
+
+  return { token, payload };
+}
+
+/* ============================================================
+   6. VALIDATE TENANT SESSION (FOR VERIFYTOKEN)
+   ============================================================ */
+export async function validateTenantSession(tenant_session_uuid) {
+  return prisma.tbl_tenant_sessions.findFirst({
+    where: {
+      tenant_session_uuid,
+      is_active: true,
+      expires_at: { gt: new Date() },
+    },
+    include: {
+      tenant_user: true,
+      tenant: true,
+    },
+  });
+}
+
+/* ============================================================
+   7. INVALIDATE TENANT SESSION (LOGOUT)
+   ============================================================ */
+export async function invalidateTenantSession(tenant_session_uuid) {
+  return prisma.tbl_tenant_sessions.updateMany({
+    where: { tenant_session_uuid, is_active: true },
+    data: {
+      is_active: false,
+      last_seen_at: new Date(),
+    },
+  });
+}
+
+/**
+ * Get active session and full user/tenant context by session_uuid + tenant_user_uuid
+ * This updates your existing getActiveSession logic to ensure the session is active in tbl_tenant_sessions.
+ */
+export async function getActiveTenantSession({
+  tenant_user_uuid,
+  tenant_session_uuid,
+}) {
+  // 1️⃣ Fetch tenant session from DB
+  const session = await prisma.tbl_tenant_sessions.findUnique({
+    where: { tenant_session_uuid },
+  });
+
+  if (!session || !session.is_active) {
+    throw new Error("Session expired or invalid");
+  }
+
+  // Expiry check
+  if (new Date(session.expires_at) < new Date()) {
+    throw new Error("Session expired");
+  }
+
+  // 2️⃣ Fetch user + tenant + roles
+  const user = await prisma.tbl_tenant_users.findUnique({
+    where: { tenant_user_uuid },
+    include: {
+      tenant: {
         include: {
           tbl_tenant_subscriptions: {
             include: {
@@ -314,10 +777,10 @@ export async function getActiveSession(userUuid) {
           },
         },
       },
-      tbl_user_roles: {
+      userRoles: {
         include: {
-          tbl_roles: true,
-          tbl_branches: {
+          role: true,
+          branch: {
             select: {
               branch_uuid: true,
               branch_name: true,
@@ -330,34 +793,48 @@ export async function getActiveSession(userUuid) {
   });
 
   if (!user) throw new Error("User not found");
-  if (!user.tent_id) throw new Error("User not linked to any organization");
 
-  const tenantId = user.tent_id;
-
-  // 2️⃣ Determine accessible branches based on role assignments
-  const branchIdsSet = new Set();
-  let hasTenantWideAccess = false;
-
-  // ✅ Check each role assignment (look at assignment.branch_id, not role.branch_id!)
-  for (const assignment of user.tbl_user_roles) {
-    if (assignment.branch_id === null) {
-      // Tenant-wide role found - user can access ALL branches
-      hasTenantWideAccess = true;
-      break;
-    } else if (assignment.branch_id) {
-      // ✅ Only add if branch_id exists and is not null
-      branchIdsSet.add(assignment.branch_id);
-    }
+  // Authorization check
+  if (session.tenant_user_id !== user.tenant_user_id) {
+    throw new Error("Session does not belong to user");
   }
 
-  // 3️⃣ Fetch accessible branches
+  // 3️⃣ Determine allowed branches
+  const tenantId = user.tenant_id;
+  const branchAccess = new Set();
+  let hasTenantWide = false;
+
+  for (const ur of user.userRoles) {
+    if (!ur.branch_id) {
+      hasTenantWide = true;
+      break;
+    }
+    branchAccess.add(ur.branch_id);
+  }
+
   let allowedBranches = [];
 
-  if (hasTenantWideAccess) {
-    // Get all active branches for this tenant
+  if (hasTenantWide) {
+    allowedBranches = await prisma.tbl_branches.findMany({
+      where: { tenant_id: tenantId, status: true },
+      select: {
+        branch_uuid: true,
+        branch_name: true,
+        is_hq: true,
+        status: true,
+        address1: true,
+        address2: true,
+        state: true,
+        country: true,
+        postal_code: true,
+      },
+      orderBy: [{ is_hq: "desc" }, { branch_name: "asc" }],
+    });
+  } else {
     allowedBranches = await prisma.tbl_branches.findMany({
       where: {
-        tent_id: tenantId,
+        tenant_id: tenantId,
+        branch_id: { in: [...branchAccess] },
         status: true,
       },
       select: {
@@ -373,61 +850,32 @@ export async function getActiveSession(userUuid) {
       },
       orderBy: [{ is_hq: "desc" }, { branch_name: "asc" }],
     });
-  } else if (branchIdsSet.size > 0) {
-    // ✅ Filter out any undefined/null values before querying
-    const validBranchIds = [...branchIdsSet].filter(
-      (id) => id !== null && id !== undefined
-    );
-
-    if (validBranchIds.length > 0) {
-      allowedBranches = await prisma.tbl_branches.findMany({
-        where: {
-          tent_id: tenantId,
-          status: true,
-          branch_id: { in: validBranchIds },
-        },
-        select: {
-          branch_uuid: true,
-          branch_name: true,
-          is_hq: true,
-          status: true,
-          address1: true,
-          address2: true,
-          state: true,
-          country: true,
-          postal_code: true,
-        },
-        orderBy: [{ is_hq: "desc" }, { branch_name: "asc" }],
-      });
-    }
   }
 
-  // 4️⃣ Build user roles summary
-  const rolesSummary = user.tbl_user_roles.map((ur) => ({
-    role_name: ur.tbl_roles.role_name,
-    role_uuid: ur.tbl_roles.role_uuid,
-    role_type: ur.tbl_roles.role_type,
-    scope: ur.branch_id === null ? "tenant" : "branch",
-    branch: ur.tbl_branches
+  // 4️⃣ Build roles summary
+  const rolesSummary = user.userRoles.map((ur) => ({
+    role_name: ur.role.role_name,
+    role_uuid: ur.role.role_uuid,
+    role_type: ur.role.role_type,
+    scope: ur.branch_id ? "branch" : "tenant",
+    branch: ur.branch
       ? {
-          branch_uuid: ur.tbl_branches.branch_uuid,
-          branch_name: ur.tbl_branches.branch_name,
-          is_hq: ur.tbl_branches.is_hq,
+          branch_uuid: ur.branch.branch_uuid,
+          branch_name: ur.branch.branch_name,
+          is_hq: ur.branch.is_hq,
         }
       : null,
   }));
 
-  const subscription =
-    user.tbl_tent_master?.tbl_tenant_subscriptions?.[0] || null;
-
+  // Subscription
+  const subscription = user.tenant?.tbl_tenant_subscriptions?.[0] || null;
   const subscriptionDetails = subscription
     ? {
         subscription_uuid: subscription.subscription_uuid,
         payment_status: subscription.payment_status,
         start_date: subscription.start_date,
         end_date: subscription.end_date,
-        is_auto_renew: subscription.is_auto_renew,
-        plan_details: subscription.tbl_subscription_plans
+        plan: subscription.tbl_subscription_plans
           ? {
               plan_name: subscription.tbl_subscription_plans.plan_name,
               plan_description:
@@ -438,10 +886,15 @@ export async function getActiveSession(userUuid) {
       }
     : null;
 
-  // 5️⃣ Build session response
+  // 5️⃣ Build final response
   return {
+    session: {
+      tenant_session_uuid,
+      expires_at: session.expires_at,
+      is_active: session.is_active,
+    },
     user: {
-      user_uuid: user.user_uuid,
+      tenant_user_uuid: user.tenant_user_uuid,
       user_name: user.user_name,
       user_email: user.user_email,
       user_phone: user.user_phone,
@@ -451,23 +904,18 @@ export async function getActiveSession(userUuid) {
       roles: rolesSummary,
     },
     tenant: {
-      tent_uuid: user.tbl_tent_master.tent_uuid,
-      tent_name: user.tbl_tent_master.tent_name,
-      tent_email: user.tbl_tent_master.tent_email,
-      tent_phone: user.tbl_tent_master.tent_phone,
-      tent_logo: user.tbl_tent_master.tent_logo,
-      tent_address1: user.tbl_tent_master.tent_address1,
-      tent_address2: user.tbl_tent_master.tent_address2,
-      tent_state: user.tbl_tent_master.tent_state,
-      tent_country: user.tbl_tent_master.tent_country,
-      tent_postalcode: user.tbl_tent_master.tent_postalcode,
-      tent_registration_number: user.tbl_tent_master.tent_registration_number,
-      tent_status: user.tbl_tent_master.tent_status,
+      tenant_uuid: user.tenant.tenant_uuid,
+      tenant_name: user.tenant.tenant_name,
+      tenant_email: user.tenant.tenant_email,
+      tenant_phone: user.tenant.tenant_phone,
+      tenant_state: user.tenant.tenant_state,
+      tenant_country: user.tenant.tenant_country,
+      tenant_logo: user.tenant.tenant_logo,
     },
     branches: allowedBranches,
     subscription: subscriptionDetails,
     permissions: {
-      has_tenant_wide_access: hasTenantWideAccess,
+      has_tenant_wide_access: hasTenantWide,
       accessible_branch_count: allowedBranches.length,
     },
   };
@@ -481,8 +929,8 @@ export async function updateUserPassword(
   currentPassword,
   newPassword
 ) {
-  const user = await prisma.tbl_tent_users.findUnique({
-    where: { user_uuid: userUuid },
+  const user = await prisma.tbl_tenant_users.findUnique({
+    where: { tenant_user_uuid: userUuid },
   });
 
   if (!user) throw new Error("User not found");
@@ -492,8 +940,8 @@ export async function updateUserPassword(
 
   const hashedNewPwd = await hashPassword(newPassword);
 
-  await prisma.tbl_tent_users.update({
-    where: { user_uuid: userUuid },
+  await prisma.tbl_tenant_users.update({
+    where: { tenant_user_uuid: userUuid },
     data: { password: hashedNewPwd, modified_on: new Date() },
   });
 
@@ -504,51 +952,19 @@ export async function updateUserPassword(
  * Initiate Forgot Password
  */
 
-// Generate a secure random token
-const generateResetToken = () => {
-  return crypto.randomBytes(32).toString("hex");
-};
+const hashToken = (token) =>
+  crypto.createHash("sha256").update(token).digest("hex");
 
-// Hash token before storing
-const hashToken = (token) => {
-  return crypto.createHash("sha256").update(token).digest("hex");
-};
-
-// Service: Request password reset
-export const requestPasswordReset = async (
-  email,
-  ipAddress = null,
-  userAgent = null
-) => {
+export const requestPasswordResetForTenantUser = async (tenantUser) => {
   try {
-    // 1. Check if user exists
-    const user = await prisma.tbl_tent_users.findUnique({
-      where: { user_email: email },
-      select: {
-        user_id: true,
-        user_name: true,
-        user_email: true,
-      },
-    });
-
-    // IMPORTANT: Always return success (prevent email enumeration)
-    if (!user) {
-      return {
-        success: true,
-        message: "If the email exists, a reset link has been sent.",
-      };
-    }
-
-    // 2. Generate token
-    const resetToken = generateResetToken();
+    const resetToken = crypto.randomBytes(32).toString("hex");
     const hashedToken = hashToken(resetToken);
 
-    // 3. Use transaction for atomicity
     await prisma.$transaction(async (tx) => {
-      // Invalidate existing password reset tokens
+      // Invalidate existing reset tokens
       await tx.tbl_tokens.updateMany({
         where: {
-          user_id: user.user_id,
+          tenant_user_id: tenantUser.tenant_user_id,
           token_type: "PASSWORD_RESET",
           used_at: null,
         },
@@ -557,110 +973,104 @@ export const requestPasswordReset = async (
         },
       });
 
-      // Create new token (expires in 1 hour)
-      const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
-
       await tx.tbl_tokens.create({
         data: {
           token: hashedToken,
           token_type: "PASSWORD_RESET",
-          user_id: user.user_id,
-          expires_at: expiresAt,
-          ip_address: ipAddress,
-          user_agent: userAgent,
+          tenant_user_id: tenantUser.tenant_user_id,
+          expires_at: new Date(Date.now() + 3600 * 1000),
         },
       });
     });
 
-    // 4. Send email
-    await sendPasswordResetEmail(user, resetToken);
-
-    return {
-      success: true,
-      message: "If the email exists, a reset link has been sent.",
-    };
+    // Send per-tenant email
+    await sendPasswordResetEmail(
+      {
+        tenant_name: tenantUser.tenant?.tenant_name || "Your Account",
+        user_email: tenantUser.user_email,
+        user_name: tenantUser.user_name,
+      },
+      resetToken
+    );
   } catch (error) {
-    console.error("Password reset request error:", error);
-    throw new Error("Failed to process password reset request");
+    console.error("❌ requestPasswordResetForTenantUser Error:", error);
   }
 };
 
-// Service: Verify reset token
+// Verify reset token
 export const verifyResetToken = async (token) => {
   try {
     const hashedToken = hashToken(token);
-    console.log("hashedToken", hashedToken);
+
     const tokenData = await prisma.tbl_tokens.findUnique({
       where: { token: hashedToken },
       include: {
-        tbl_tent_users: {
+        tenant_user: {
           select: {
-            user_id: true,
+            tenant_user_id: true,
+            tenant_user_uuid: true,
             user_email: true,
             user_name: true,
+            tenant: { select: { tenant_name: true } },
           },
         },
       },
     });
 
     if (!tokenData) {
-      return { valid: false, error: "Invalid or expired reset token" };
+      return { valid: false, error: "Invalid or expired token" };
     }
 
-    // Check if already used
     if (tokenData.used_at) {
-      return { valid: false, error: "This reset link has already been used" };
+      return { valid: false, error: "Reset link already used" };
     }
 
-    // Check if expired
-    if (new Date() > new Date(tokenData.expires_at)) {
-      return { valid: false, error: "This reset link has expired" };
+    if (new Date() > tokenData.expires_at) {
+      return { valid: false, error: "Reset link expired" };
     }
 
     return {
       valid: true,
-      userId: tokenData.tbl_tent_users.user_id,
-      email: tokenData.tbl_tent_users.user_email,
-      name: tokenData.tbl_tent_users.user_name,
+      userId: tokenData.tenant_user.tenant_user_id,
+      tenant_user_uuid: tokenData.tenant_user.tenant_user_uuid,
+      email: tokenData.tenant_user.user_email,
+      name: tokenData.tenant_user.user_name,
+      tenant_name: tokenData.tenant_user.tenant?.tenant_name ?? null,
     };
   } catch (error) {
-    console.error("Token verification error:", error);
-    throw new Error("Failed to verify reset token");
+    console.error("❌ Verify Reset Token Error:", error);
+    return { valid: false, error: "Verification failed" };
   }
 };
 
-// Service: Reset password
+// Reset password
 export const resetPassword = async (token, newPassword) => {
   try {
-    // 1. Verify token
-    const verification = await verifyResetToken(token);
-
-    if (!verification.valid) {
-      return { success: false, error: verification.error };
+    const validation = await verifyResetToken(token);
+    if (!validation.valid) {
+      return { success: false, error: validation.error };
     }
 
-    // 2. Hash new password
     const hashedPassword = await hashPassword(newPassword);
+    const hashedToken = hashToken(token);
 
-    // 3. Update password and mark token as used
     await prisma.$transaction(async (tx) => {
-      // Update password
-      await tx.tbl_tent_users.update({
-        where: { user_id: verification.userId },
+      // Update only this tenant account password
+      await tx.tbl_tenant_users.update({
+        where: { tenant_user_id: validation.userId },
         data: { password: hashedPassword },
       });
 
-      // Mark token as used
-      const hashedToken = hashToken(token);
+      // Mark THIS token as used
       await tx.tbl_tokens.update({
         where: { token: hashedToken },
         data: { used_at: new Date() },
       });
 
-      // Invalidate all other password reset tokens
+      // Invalidate other tokens for same tenant user
       await tx.tbl_tokens.updateMany({
         where: {
-          user_id: verification.userId,
+          tenant_user_id: validation.userId,
           token_type: "PASSWORD_RESET",
           used_at: null,
         },
@@ -668,15 +1078,15 @@ export const resetPassword = async (token, newPassword) => {
       });
     });
 
-    // 4. Send confirmation email
     await sendPasswordResetSuccessEmail({
-      user_email: verification.email,
-      user_name: verification.name,
+      user_email: validation.email,
+      user_name: validation.name,
+      tenant_name: validation.tenant_name,
     });
 
-    return { success: true, message: "Password has been reset successfully" };
+    return { success: true, message: "Password updated successfully" };
   } catch (error) {
-    console.error("Password reset error:", error);
-    throw new Error("Failed to reset password");
+    console.error("❌ Reset Password Error:", error);
+    return { success: false, error: "Failed to reset password" };
   }
 };

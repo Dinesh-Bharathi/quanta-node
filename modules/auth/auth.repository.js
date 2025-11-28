@@ -1,162 +1,208 @@
-import prisma from "../../config/prismaClient.js";
+// repositories/tenant.repository.js
 import { generateShortUUID } from "../../utils/generateUUID.js";
-export async function grantFullPermissions(tx, role_id) {
-  const menus = await tx.tbl_menus.findMany({ select: { menu_id: true } });
 
-  if (menus.length > 0) {
-    await tx.tbl_role_permissions.createMany({
-      data: menus.map((m) => ({
-        role_id,
-        menu_id: m.menu_id,
-        can_read: true,
-        can_add: true,
-        can_update: true,
-        can_delete: true,
-      })),
-    });
-  }
-}
+/**
+ * Create Tenant Core
+ *
+ * Creates:
+ *   1. Tenant
+ *   2. HQ Branch
+ *   3. Link user to tenant + branch
+ *   4. Default roles (Super Admin + Admin)
+ *   5. Assign Super Admin to owner
+ *   6. Subscription
+ *
+ * Returns:
+ *   { tenant, branch, updatedUser, roles, subscription }
+ */
 
 export async function createTenantCore(prisma, user, data, planUuid) {
   const {
-    tent_name,
-    tent_phone,
-    tent_email,
-    tent_address1,
-    tent_address2,
-    tent_state,
-    tent_country,
-    tent_postalcode,
-    tent_registration_number,
+    tenant_name,
+    tenant_phone,
+    tenant_email,
+    tenant_address1,
+    tenant_address2,
+    tenant_state,
+    tenant_country,
+    tenant_postalcode,
+    tenant_registration_number,
   } = data;
 
-  const tent_uuid = generateShortUUID();
+  const tenant_uuid = generateShortUUID();
   const branch_uuid = generateShortUUID();
 
-  return await prisma.$transaction(
+  return prisma.$transaction(
     async (tx) => {
-      // 1. Create Tenant
-      const tenant = await tx.tbl_tent_master.create({
+      // ==================================================
+      // 1️⃣ CREATE TENANT
+      // ==================================================
+      const tenant = await tx.tbl_tenant.create({
         data: {
-          tent_uuid,
-          tent_name,
-          tent_phone,
-          tent_email: tent_email || user.user_email,
-          tent_address1,
-          tent_address2,
-          tent_state,
-          tent_country,
-          tent_postalcode,
-          tent_registration_number,
-          tent_status: true,
+          tenant_uuid,
+          tenant_name,
+          tenant_phone,
+          tenant_email: tenant_email || user.user_email,
+          tenant_address1,
+          tenant_address2,
+          tenant_state,
+          tenant_country,
+          tenant_postalcode,
+          tenant_registration_number,
+          tenant_status: true,
+          tenant_country_code: null,
+          is_mobile_verified: false,
+          is_email_verified: false,
         },
       });
 
-      // 2. Create HQ Branch
+      console.log("  ✅ Tenant created:", tenant.tenant_id);
+
+      // ==================================================
+      // 2️⃣ CREATE HQ BRANCH
+      // ==================================================
       const branch = await tx.tbl_branches.create({
         data: {
           branch_uuid,
-          tent_id: tenant.tent_id,
-          branch_name: tent_name,
+          tenant_id: tenant.tenant_id,
+          branch_name: `${tenant_name} - HQ`,
           is_hq: true,
           status: true,
-          address1: tent_address1,
-          address2: tent_address2,
-          country: tent_country,
-          state: tent_state,
-          postal_code: tent_postalcode,
-          phone: tent_phone,
+          address1: tenant_address1,
+          address2: tenant_address2,
+          country: tenant_country,
+          state: tenant_state,
+          postal_code: tenant_postalcode,
+          phone: tenant_phone,
         },
       });
 
-      // 3. Link User to Tenant
-      const updatedUser = await tx.tbl_tent_users.update({
-        where: { user_uuid: user.user_uuid },
+      console.log("  ✅ HQ branch created:", branch.branch_id);
+
+      // ==================================================
+      // 3️⃣ LINK USER TO TENANT
+      // ==================================================
+      const updatedUser = await tx.tbl_tenant_users.update({
+        where: { tenant_user_uuid: user.tenant_user_uuid },
         data: {
-          tent_id: tenant.tent_id,
+          tenant_id: tenant.tenant_id,
+          branch_id: branch.branch_id,
           is_owner: true,
+          modified_on: new Date(),
+        },
+        select: {
+          tenant_user_id: true,
+          tenant_user_uuid: true,
+          user_email: true,
+          user_name: true,
+          tenant_id: true,
+          branch_id: true,
+          global_user_id: true, // ← NEW: now always included
         },
       });
 
-      // 4. Create Default Roles (NOT permissions)
-      const { superAdmin, admin, manager } = await createDefaultRoles(
+      console.log("  ✅ User linked to tenant:", updatedUser.tenant_user_id);
+
+      // ==================================================
+      // 4️⃣ CREATE DEFAULT ROLES
+      // ==================================================
+      const roles = await createDefaultRoles(
         tx,
-        tenant.tent_id,
-        updatedUser.user_id
+        tenant.tenant_id,
+        updatedUser.tenant_user_id
       );
 
-      // 5. Create Subscription (simple)
+      console.log("  ✅ Default roles created");
+
+      // ==================================================
+      // 5️⃣ ASSIGN SUPER ADMIN ROLE TO OWNER
+      // ==================================================
+      await tx.tbl_user_roles.create({
+        data: {
+          tenant_user_id: updatedUser.tenant_user_id,
+          role_id: roles.superAdmin.role_id,
+          branch_id: null,
+          assigned_by: updatedUser.tenant_user_id,
+        },
+      });
+
+      console.log("  ✅ Super Admin assigned to owner");
+
+      // ==================================================
+      // 6️⃣ CREATE SUBSCRIPTION
+      // ==================================================
       const subscription = await createSubscriptionRecord(
         tx,
-        tenant.tent_id,
+        tenant.tenant_id,
+        updatedUser.tenant_user_id,
         planUuid
       );
 
+      console.log("  ✅ Subscription created:", subscription.subscription_id);
+
+      // ==================================================
+      // DONE → SEND BACK SANITIZED DATA
+      // ==================================================
       return {
         tenant,
         branch,
         updatedUser,
-        roles: { superAdmin, admin, manager },
+        roles,
         subscription,
       };
     },
     { timeout: 20000 }
-  ); // safe
+  );
 }
 
+/**
+ * Default Roles (SuperAdmin + Admin)
+ */
 export async function createDefaultRoles(tx, tenantId, ownerUserId) {
-  const superUUID = generateShortUUID();
+  const superAdminUUID = generateShortUUID();
   const adminUUID = generateShortUUID();
-  const managerUUID = generateShortUUID();
 
-  const [superAdmin, admin, manager] = await Promise.all([
+  const [superAdmin, admin] = await Promise.all([
     tx.tbl_roles.create({
       data: {
-        role_uuid: superUUID,
-        tent_id: tenantId,
+        role_uuid: superAdminUUID,
+        tenant_id: tenantId,
         role_name: "Super Admin",
-        description: "Full access",
+        description: "Full system access with all permissions",
         role_type: "SYSTEM",
+        is_active: true,
         created_by: ownerUserId,
+        updated_by: ownerUserId,
+        updated_at: new Date(),
       },
     }),
     tx.tbl_roles.create({
       data: {
         role_uuid: adminUUID,
-        tent_id: tenantId,
+        tenant_id: tenantId,
         role_name: "Admin",
-        description: "Administrative role",
+        description: "Administrative role with most permissions",
         role_type: "CUSTOM",
+        is_active: true,
         created_by: ownerUserId,
-      },
-    }),
-    tx.tbl_roles.create({
-      data: {
-        role_uuid: managerUUID,
-        tent_id: tenantId,
-        role_name: "Manager",
-        description: "Branch manager",
-        role_type: "CUSTOM",
-        created_by: ownerUserId,
+        updated_by: ownerUserId,
+        updated_at: new Date(),
       },
     }),
   ]);
 
-  // Assign super admin to owner
-  await tx.tbl_user_roles.create({
-    data: {
-      user_id: ownerUserId,
-      role_id: superAdmin.role_id,
-      branch_id: null, // tenant-wide
-      assigned_by: ownerUserId,
-    },
-  });
-
-  return { superAdmin, admin, manager };
+  return { superAdmin, admin };
 }
 
-export async function createSubscriptionRecord(tx, tenantId, planUuid) {
-  // fetch plan
+/**
+ * Subscription Creation
+ */
+export async function createSubscriptionRecord(
+  tx,
+  tenantId,
+  tenantUserId,
+  planUuid
+) {
   const plan = planUuid
     ? await tx.tbl_subscription_plans.findUnique({
         where: { plan_uuid: planUuid },
@@ -175,58 +221,60 @@ export async function createSubscriptionRecord(tx, tenantId, planUuid) {
   return tx.tbl_tenant_subscriptions.create({
     data: {
       subscription_uuid,
-      tent_id: tenantId,
+      tenant_id: tenantId,
+      tenant_user_id: tenantUserId,
       plan_id: plan.plan_id,
       start_date: start,
       end_date: end,
       is_active: true,
       is_auto_renew: false,
-      payment_status: plan.price > 0 ? "PENDING" : "FREE",
+      payment_status:
+        Number(plan.price_monthly) > 0 || Number(plan.price_yearly) > 0
+          ? "PENDING"
+          : "FREE",
     },
   });
 }
 
+/**
+ * Create Tenant Permissions (Same as earlier)
+ */
 export async function createTenantPermissions(prisma, roles) {
   const menus = await prisma.tbl_menus.findMany({
     select: { menu_id: true },
   });
 
-  if (!menus.length) return;
+  if (!menus.length) {
+    console.warn("⚠️ No menus found. Skipping permissions creation.");
+    return;
+  }
 
-  const data = [];
+  const permissionsData = [];
 
-  menus.forEach((m) => {
-    data.push({
+  menus.forEach((menu) => {
+    permissionsData.push({
       role_id: roles.superAdmin.role_id,
-      menu_id: m.menu_id,
+      menu_id: menu.menu_id,
       can_read: true,
       can_add: true,
       can_update: true,
       can_delete: true,
     });
 
-    data.push({
+    permissionsData.push({
       role_id: roles.admin.role_id,
-      menu_id: m.menu_id,
+      menu_id: menu.menu_id,
       can_read: true,
       can_add: true,
       can_update: true,
       can_delete: false,
     });
-
-    data.push({
-      role_id: roles.manager.role_id,
-      menu_id: m.menu_id,
-      can_read: true,
-      can_add: true,
-      can_update: false,
-      can_delete: false,
-    });
   });
 
-  // Batch insert after transaction
   await prisma.tbl_role_permissions.createMany({
-    data,
+    data: permissionsData,
     skipDuplicates: true,
   });
+
+  console.log(`  ⚙️ Created ${permissionsData.length} permissions`);
 }

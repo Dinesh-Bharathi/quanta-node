@@ -3,9 +3,9 @@ generator client {
   binaryTargets = ["native", "windows", "debian-openssl-3.0.x"]
 }
 
-generator erd {
-  provider = "prisma-erd-generator"
-}
+// generator erd {
+//   provider = "prisma-erd-generator"
+// }
 
 datasource db {
   provider = "mysql"

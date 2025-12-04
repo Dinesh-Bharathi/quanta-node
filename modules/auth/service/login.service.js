@@ -90,6 +90,7 @@ export async function createGlobalSession({
       expires_at,
     },
     select: {
+      global_user_id: true,
       global_session_uuid: true,
       expires_at: true,
     },

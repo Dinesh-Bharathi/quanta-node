@@ -189,7 +189,7 @@ export const verifyEmailController = async (req, res) => {
       const globalJwt = generateToken(
         {
           email: user.user_email,
-          global_user_id: result.global_user_id.toString(),
+          global_user_id: globalSession.global_user_id.toString(),
           global_session_uuid: globalSession.global_session_uuid,
         },
         "7d"

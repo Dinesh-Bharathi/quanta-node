@@ -71,7 +71,7 @@ export const registerUserController = async (req, res) => {
       res.cookie("global_token", globalJwt, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "Strict",
+        sameSite: process.env.NODE_ENV === "production" ? "None" : "Strict",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
 
@@ -199,7 +199,7 @@ export const verifyEmailController = async (req, res) => {
       res.cookie("global_token", globalJwt, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
-        sameSite: "Strict",
+        sameSite: process.env.NODE_ENV === "production" ? "None" : "Strict",
         maxAge: 7 * 24 * 60 * 60 * 1000,
       });
       return res.redirect(

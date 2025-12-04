@@ -50,7 +50,7 @@ export const loginStep1Controller = async (req, res) => {
     res.cookie("global_token", globalJwt, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "Strict",
+      sameSite: process.env.NODE_ENV === "production" ? "None" : "Strict",
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
@@ -143,7 +143,7 @@ export const loginStep2Controller = async (req, res, next) => {
     res.cookie("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "Strict",
+      sameSite: process.env.NODE_ENV === "production" ? "None" : "Strict",
       maxAge: 24 * 60 * 60 * 1000,
     });
 

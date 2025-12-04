@@ -297,12 +297,29 @@ model tbl_user_roles {
   @@map("tbl_user_roles")
 }
 
+model tbl_deletion_requests {
+  id                BigInt    @id @default(autoincrement())
+  request_uuid      String    @unique
+  tenant_id         BigInt
+  requester_user_id BigInt
+  token             String    @unique
+  status            String    @default("PENDING") // PENDING, CONFIRMED, CANCELLED, COMPLETED
+  requested_at      DateTime  @default(now())
+  expires_at        DateTime
+  completed_at      DateTime?
+  reason            String?
+  notes             String?   @db.Text
+
+  @@index([tenant_id])
+}
+
 enum TokenType {
   PASSWORD_RESET
   EMAIL_VERIFICATION
   MAGIC_LINK
   FA                 @map("2FA")
   API_KEY
+  ACCOUNT_DELETE
 }
 
 enum tbl_roles_role_type {

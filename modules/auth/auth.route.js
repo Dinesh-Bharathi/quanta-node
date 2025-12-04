@@ -3,19 +3,13 @@ import {
   getSessionController,
   logoutController,
   changePasswordController,
-  registerUserController,
-  verifyEmailController,
-  registerTenantController,
-  resendVerificationController,
   verifyResetPasswordTokenController,
   resetPasswordController,
-  loginStep1Controller,
-  loginStep2Controller,
   sessionCheckController,
-  getTenantSelectionController,
   getTenantsForEmailController,
   sendPasswordResetForTenantController,
-} from "./auth.controller.js";
+  logoutGlobalSession,
+} from "./controller/auth.controller.js";
 import { verifyToken } from "../../middlewares/authMiddleware.js";
 import { cryptoMiddleware } from "../../middlewares/cryptoMiddleware.js";
 import {
@@ -25,6 +19,19 @@ import {
 } from "./auth.validation.js";
 import passport from "passport";
 import { generateToken } from "../../utils/generateToken.js";
+import { verifyGlobalOnly } from "../../middlewares/verifyGlobalOnly.js";
+import prisma from "../../config/prismaClient.js";
+import {
+  getTenantSelectionController,
+  loginStep1Controller,
+  loginStep2Controller,
+} from "./controller/login.controller.js";
+import {
+  registerTenantController,
+  registerUserController,
+  resendVerificationController,
+  verifyEmailController,
+} from "./controller/register.controller.js";
 
 const router = Router();
 // --------------------------------------------------------
@@ -32,12 +39,22 @@ const router = Router();
 // --------------------------------------------------------
 router.post("/login/step1", cryptoMiddleware, loginStep1Controller);
 
-router.get("/tenant-select/:global_session_uuid", getTenantSelectionController);
+router.get(
+  "/tenant-select",
+  verifyGlobalOnly,
+  cryptoMiddleware,
+  getTenantSelectionController
+);
 
 // --------------------------------------------------------
 // STEP 2: Select Tenant → creates tenant session + JWT
 // --------------------------------------------------------
-router.post("/login/step2", loginStep2Controller);
+router.post(
+  "/login/step2",
+  verifyGlobalOnly,
+  cryptoMiddleware,
+  loginStep2Controller
+);
 
 // --------------------------------------------------------
 // GOOGLE LOGIN
@@ -54,26 +71,84 @@ router.get(
   "/google/login/callback",
   passport.authenticate("google-login", {
     session: false,
-    failureRedirect: `${process.env.CLIENT_URL}/login?error=google_failed`,
   }),
   async (req, res) => {
-    // Frontend redirects to /tenant-select
-    const global_session_uuid = req.user.global_session_uuid;
+    try {
+      // CASE 1: Strategy requested a custom redirect (handled inside google-login)
+      if (req.user?.customRedirect) {
+        return res.redirect(req.user.customRedirect);
+      }
 
-    return res.redirect(
-      `${process.env.CLIENT_URL}/tenant-select?src=google&global_session_uuid=${global_session_uuid}`
-    );
+      // CASE 2: No user returned (Google error or unknown failure)
+      if (!req.user) {
+        return res.redirect(
+          `${process.env.CLIENT_URL}/login?src=google&error=google_failed`
+        );
+      }
+
+      const { tenants, email, global_session_uuid } = req.user;
+
+      if (!email || !global_session_uuid) {
+        return res.redirect(
+          `${process.env.CLIENT_URL}/login?src=google&error=invalid_session`
+        );
+      }
+
+      // Fetch global_user_id properly
+      const globalUser = await prisma.tbl_global_users.findUnique({
+        where: { email },
+      });
+
+      if (!globalUser) {
+        return res.redirect(
+          `${process.env.CLIENT_URL}/login?src=google&error=no_global_user`
+        );
+      }
+
+      // ----------------------------------------------------
+      // ISSUE GLOBAL JWT (global auth context)
+      // ----------------------------------------------------
+      const globalJwt = generateToken(
+        {
+          email,
+          global_user_id: globalUser.global_user_id.toString(),
+          global_session_uuid,
+        },
+        "7d"
+      );
+
+      // ----------------------------------------------------
+      // SET COOKIE
+      // ----------------------------------------------------
+      res.cookie("global_token", globalJwt, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "Strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000,
+      });
+
+      // ----------------------------------------------------
+      // SUCCESS → Redirect to tenant selection
+      // ----------------------------------------------------
+      return res.redirect(`${process.env.CLIENT_URL}/tenant-select?src=google`);
+    } catch (err) {
+      console.error("❌ Google Login Callback Error:", err);
+      return res.redirect(
+        `${process.env.CLIENT_URL}/login?src=google&error=google_failed`
+      );
+    }
   }
 );
 
 // --------------------------------------------------------
 // GOOGLE SIGNUP
-// --------------------------------------------------------
+// --------------------------------------------------------router.get(
+
 router.get(
   "/google/signup",
   passport.authenticate("google-signup", {
     scope: ["profile", "email"],
-    prompt: "select_account",
+    // prompt: "select_account",
   })
 );
 
@@ -81,14 +156,43 @@ router.get(
   "/google/signup/callback",
   passport.authenticate("google-signup", {
     session: false,
-    failureRedirect: `${process.env.CLIENT_URL}/signup?src=google&error=google_failed`,
   }),
   async (req, res) => {
-    const global_session_uuid = req.user.global_session_uuid;
+    try {
+      // Case 1: custom redirect directly from strategy
+      if (req.user?.customRedirect) {
+        // Set global token if available
+        if (req.user.global_session_uuid && req.user.global_user_id) {
+          const globalJwt = generateToken(
+            {
+              email: req.user.email,
+              global_user_id: req.user.global_user_id.toString(),
+              global_session_uuid: req.user.global_session_uuid,
+            },
+            "7d"
+          );
 
-    return res.redirect(
-      `${process.env.CLIENT_URL}/tenant-select?global_session_uuid=${global_session_uuid}`
-    );
+          res.cookie("global_token", globalJwt, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "Strict",
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+          });
+        }
+
+        return res.redirect(req.user.customRedirect);
+      }
+
+      // Should not normally occur
+      return res.redirect(
+        `${process.env.CLIENT_URL}/signup?src=google&error=unexpected`
+      );
+    } catch (err) {
+      console.error("Google Signup Callback Error:", err);
+      return res.redirect(
+        `${process.env.CLIENT_URL}/signup?src=google&error=google_failed`
+      );
+    }
   }
 );
 
@@ -111,7 +215,8 @@ router.get(
 // --------------------------------------------------------
 // TENANT LOGOUT
 // --------------------------------------------------------
-router.post("/logout", logoutController);
+router.post("/logout", verifyToken, logoutController);
+router.post("/logout/session", verifyGlobalOnly, logoutGlobalSession);
 
 router.get(
   "/google/link",
@@ -135,14 +240,25 @@ router.get(
 );
 
 //Signup & Onboarding
-router.post("/signup", registerValidation, registerUserController);
+router.post(
+  "/signup",
+  registerValidation,
+  cryptoMiddleware,
+  registerUserController
+);
 router.post(
   "/resend-verification",
   resendVerificationValidation,
+  cryptoMiddleware,
   resendVerificationController
 );
 router.get("/verify-email/:token", verifyEmailController);
-router.post("/register-tenant/:userUuid", registerTenantController);
+router.post(
+  "/register-tenant/:userUuid",
+  verifyGlobalOnly,
+  cryptoMiddleware,
+  registerTenantController
+);
 
 router.post(
   "/change-password",

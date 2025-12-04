@@ -41,17 +41,17 @@ export const errorHandler = (err, req, res, next) => {
 
 function getErrorCode(statusCode) {
   const errorCodes = {
-    400: "BAD_REQUEST",
-    401: "UNAUTHORIZED",
-    403: "FORBIDDEN",
-    404: "NOT_FOUND",
-    409: "CONFLICT",
-    422: "UNPROCESSABLE_ENTITY",
-    429: "TOO_MANY_REQUESTS",
-    500: "INTERNAL_SERVER_ERROR",
-    502: "BAD_GATEWAY",
-    503: "SERVICE_UNAVAILABLE",
+    400: "Bad Request",
+    401: "Unauthorized",
+    403: "Forbidden",
+    404: "Not found",
+    409: "Conflict",
+    422: "Unprocessable entity",
+    429: "Too manu requests",
+    500: "Internal server error",
+    502: "Bad gateway",
+    503: "Service unavailable",
   };
 
-  return errorCodes[statusCode] || "UNKNOWN_ERROR";
+  return errorCodes[statusCode] || "Unknown error";
 }

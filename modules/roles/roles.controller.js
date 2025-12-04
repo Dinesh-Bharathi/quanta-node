@@ -17,8 +17,6 @@ export const getTenantMenusController = async (req, res, next) => {
   try {
     const { tenantUuid } = req.params;
 
-    console.log("tenantUuid", tenantUuid);
-
     // =============================
     // VALIDATION
     // =============================
@@ -198,15 +196,6 @@ export const updateTenantRoleController = async (req, res, next) => {
   try {
     const { roleUuid } = req.params;
     const { tenantUuid, role_name, description, permissions } = req.body;
-
-    console.log(
-      "updateTenantRoleController",
-      roleUuid,
-      tenantUuid,
-      role_name,
-      description,
-      permissions
-    );
 
     // ========================================
     // VALIDATION

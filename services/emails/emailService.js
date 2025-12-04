@@ -133,3 +133,12 @@ export async function sendPasswordResetSuccessEmail(user) {
   });
   console.log("✅ Password reset success email sent to:", user.user_email);
 }
+
+export async function sendDeleteConfirmation({ to, subject, html }) {
+  console.log("sendDeleteConfirmation", to, subject, html);
+  await sendEmail({
+    to,
+    subject,
+    html,
+  });
+}

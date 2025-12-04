@@ -9,6 +9,7 @@ import rolesRoutes from "../modules/roles/roles.route.js";
 import subscriptionRoutes from "../modules/subscriptions/subscription.route.js";
 import usersRoutes from "../modules/users/users.route.js";
 import branchesRoutes from "../modules/branches/branches.route.js";
+import tenantRoutes from "../modules/tenant/tenant.route.js";
 
 const router = Router();
 
@@ -70,5 +71,6 @@ router.use("/settings", settingsRoutes);
 router.use("/subscription", subscriptionRoutes);
 router.use("/users", usersRoutes);
 router.use("/branches", branchesRoutes);
+router.use("/tenant", tenantRoutes);
 
 export default router;
